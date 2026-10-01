@@ -10,17 +10,42 @@
 #include <assert.h>
 
 #include "app.h"
+#include "iic.h"
 #include "input_key.h"
 #include "input_serial.h"
+#include "led.h"
 #include "nlu.h"
 #include "rhythm.h"
+#include "xl9555.h"
+
+#include "esp_log.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+static const char *TAG = "app";
+
 void app_hw_init(void)
 {
-    /* 骨架占位：LED / IIC / XL9555 初始化在 BSP 移植后接入 */
+    led_init();                             /* LED（GPIO1，低电平点亮） */
+
+    i2c_obj_t i2c0 = iic_init(I2C_NUM_0);   /* I2C0（GPIO41/42，400kHz，legacy 驱动） */
+    xl9555_init(i2c0);                      /* XL9555：配置 IO 方向、蜂鸣器置停 */
+
+    /* 上电自检：读 XL9555 输入寄存器验证 I2C 读写通路
+     * （P1.4~P1.7 为按键，未按时为 1，其余按 0xF003 配置） */
+    uint8_t in[2] = {0};
+    esp_err_t err = xl9555_read_byte(in, 2);
+    ESP_LOGI(TAG, "XL9555 self-check: %s, input reg = 0x%04X",
+             esp_err_to_name(err), (unsigned)(in[1] << 8 | in[0]));
+
+    LED(0);                                 /* LED 亮 300ms：视觉自检 */
+    vTaskDelay(pdMS_TO_TICKS(300));
+    LED(1);
+
+    xl9555_pin_write(BEEP_IO, 0);           /* 蜂鸣器短鸣 150ms：验证 XL9555 写通路 */
+    vTaskDelay(pdMS_TO_TICKS(150));
+    xl9555_pin_write(BEEP_IO, 1);
 }
 
 void app_tasks_start(void)
