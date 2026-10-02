@@ -82,3 +82,7 @@ Desktop.ini
 *.workspace # General workspace files, can be from various tools
 *.suo       # Visual Studio Solution User Options
 *.sln.docstates # Visual Studio
+
+# 字体源文件（OFL 字体本地保存，不入库；见 data/README.md）
+data/*.ttf
+data/*.otf

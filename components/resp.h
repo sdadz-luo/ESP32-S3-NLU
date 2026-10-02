@@ -11,11 +11,12 @@
 
 #include "app_types.h"
 
-/* 发送一行回复（阶段 1 = 串口 stdout；阶段 7 按来源通道分流） */
+/* 发送一行回复：串口 + 屏幕系统消息通道（阶段 7 增 WiFi 分流） */
 void resp_send(const char *text);
 
-/* 组合式回复：前缀 × 主体 × 跨通道补语 × 后缀（随机选取）；
- * executed=false 时按执行层实时状态说明命令未生效（见 docs/STAGE2_DESIGN.md） */
-void resp_compose(intent_t intent, bool executed);
+/* 组合式回复：前缀 × 主体 × 跨通道补语 × 后缀（随机选取，见 STAGE2_DESIGN）；
+ * executed=false 时按执行层实时状态说明命令未生效；
+ * input 为用户原文（可为 NULL），供屏幕对话区显示「你> / 板>」 */
+void resp_compose(intent_t intent, bool executed, const char *input);
 
 #endif /* RESP_H */

@@ -11,14 +11,22 @@
 #include "resp.h"
 
 #include "rhythm.h"
+#include "ui.h"
 
 #include "esp_random.h"
 
 #include <stdio.h>
 
+/* 统一出口：串口一行 + 屏幕一条 UI 消息（in 为空表示系统消息） */
+static void out_line(const char *in, const char *text)
+{
+    printf("%s\n", text); /* 串口 stdout（UART0 console） */
+    ui_post(in, text);
+}
+
 void resp_send(const char *text)
 {
-    printf("%s\n", text); /* 阶段 1：直接写 stdout（UART0 console） */
+    out_line(NULL, text);
 }
 
 /* ---- 前后缀池（NULL 结尾，pool_pick 计数）---- */
@@ -145,13 +153,13 @@ static void compose_failed(intent_t intent, char *buf, size_t size)
     }
 }
 
-void resp_compose(intent_t intent, bool executed)
+void resp_compose(intent_t intent, bool executed, const char *input)
 {
     char buf[192];
 
     if (!executed) {
         compose_failed(intent, buf, sizeof(buf));
-        resp_send(buf);
+        out_line(input, buf);
         return;
     }
 
@@ -159,5 +167,5 @@ void resp_compose(intent_t intent, bool executed)
     snprintf(buf, sizeof(buf), "%s%s%s%s",
              pool_pick(PRE), pool_pick(body_pool(intent)),
              clause != NULL ? clause : "", pool_pick(SUF));
-    resp_send(buf);
+    out_line(input, buf);
 }

@@ -8,12 +8,14 @@
 
 #include "app.h"
 #include "resp.h"
+#include "ui.h"
 
 void app_main(void)
 {
-    app_hw_init();      /* LED / IIC / XL9555，单线程阶段完成 */
+    app_hw_init();      /* LED / IIC / XL9555 / SPI-LCD（顺序敏感），单线程阶段完成 */
     app_queues_init();  /* cmd_q / rhythm_q */
-    app_tasks_start();  /* rhythm → nlu → key → serial，先汇点后生产者 */
+    ui_init();          /* ui_q（屏幕对话区消息） */
+    app_tasks_start();  /* rhythm → nlu → key → serial → display，先汇点后生产者 */
     resp_send("就绪：输入命令，或按 KEY0~3 调试");
 
     /* 返回后 main 任务自动删除；禁止 while(1) 忙等（会饿死 IDLE0 触发看门狗） */

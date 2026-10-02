@@ -124,6 +124,6 @@ void task_nlu(void *arg)
             /* rhythm_q 满属异常（深度 4） */
             ESP_LOGW(TAG, "命令下发失败: %s", esp_err_to_name(err));
         }
-        resp_compose(intent, err == ESP_OK); /* 组合式回复（阶段 2） */
+        resp_compose(intent, err == ESP_OK, msg.text); /* 组合式回复（串口 + 屏幕） */
     }
 }

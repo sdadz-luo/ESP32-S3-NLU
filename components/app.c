@@ -10,12 +10,16 @@
 #include <assert.h>
 
 #include "app.h"
+#include "font16.h"
 #include "iic.h"
 #include "input_key.h"
 #include "input_serial.h"
+#include "lcd.h"
 #include "led.h"
 #include "nlu.h"
 #include "rhythm.h"
+#include "spi.h"
+#include "ui.h"
 #include "xl9555.h"
 
 #include "esp_log.h"
@@ -46,15 +50,24 @@ void app_hw_init(void)
     xl9555_pin_write(BEEP_IO, 0);           /* 蜂鸣器短鸣 150ms：验证 XL9555 写通路 */
     vTaskDelay(pdMS_TO_TICKS(150));
     xl9555_pin_write(BEEP_IO, 1);
+
+    /* LCD：SPI2 总线 + ILI9341 屏。须在 xl9555_init 之后——GPIO40 会被
+     * 从 XL9555 INT（输入）改配为 LCD DC（输出），见 docs/STAGE3_DESIGN.md */
+    spi2_init();
+    lcd_init();
+    if (!font16_load()) {
+        ESP_LOGW(TAG, "中文字库不可用，中文将显示为占位框（需刷入 data/font16.bin）");
+    }
 }
 
 void app_tasks_start(void)
 {
     /* 先建消费者/执行汇点，后建生产者：任何首次投递发生时下游都已存在。
-     * 栈为 2026-10-02 实测校准（10 分钟连跑最小余量：rhythm 1980 / nlu 2576 /
-     * key 1812 / serial 1720 B，要求 >=500 B）；nlu 余量留作阶段 6 模型推理 */
-    assert(xTaskCreatePinnedToCore(task_rhythm, "rhythm", 3072, NULL, 8, NULL, 1) == pdPASS);
-    assert(xTaskCreatePinnedToCore(task_nlu,    "nlu",    4096, NULL, 5, NULL, 1) == pdPASS);
-    assert(xTaskCreatePinnedToCore(task_key,    "key",    3072, NULL, 6, NULL, 1) == pdPASS);
-    assert(xTaskCreatePinnedToCore(task_serial, "serial", 3072, NULL, 4, NULL, 1) == pdPASS);
+     * 栈为 2026-10-02 实测校准（最小余量：rhythm 1968 / nlu 2684 / key 1832 /
+     * serial 1724 / display 2400 B，要求 >=500 B）；nlu 余量留给阶段 6 推理 */
+    assert(xTaskCreatePinnedToCore(task_rhythm,  "rhythm",  3072, NULL, 8, NULL, 1) == pdPASS);
+    assert(xTaskCreatePinnedToCore(task_nlu,     "nlu",     4096, NULL, 5, NULL, 1) == pdPASS);
+    assert(xTaskCreatePinnedToCore(task_key,     "key",     3072, NULL, 6, NULL, 1) == pdPASS);
+    assert(xTaskCreatePinnedToCore(task_serial,  "serial",  3072, NULL, 4, NULL, 1) == pdPASS);
+    assert(xTaskCreatePinnedToCore(task_display, "display", 4096, NULL, 3, NULL, 1) == pdPASS);
 }

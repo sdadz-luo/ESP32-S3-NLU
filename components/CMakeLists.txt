@@ -14,6 +14,10 @@ idf_component_register(
         "led.c"
         "iic.c"
         "xl9555.c"
+        "spi.c"
+        "lcd.c"
+        "font16.c"
+        "ui.c"
     INCLUDE_DIRS "."
-    PRIV_REQUIRES driver esp_driver_gpio esp_timer esp_hw_support
+    PRIV_REQUIRES driver esp_driver_gpio esp_driver_spi esp_timer esp_hw_support esp_partition
 )
