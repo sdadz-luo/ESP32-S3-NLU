@@ -2,7 +2,7 @@
 
 基于正点原子 DNESP32S3 开发板的学习型工程：在 ESP32-S3 上跑 NLU（自然语言理解）模型——串口 / WiFi 输入自然语言，板载意图识别后调用片上工具（LED / 蜂鸣器，后续加 LCD）。技术路线：理解层先关键词规则占位，阶段 4~6 用自训 int8 小模型（TFLite Micro）替换。
 
-当前进度：阶段 1（骨架与执行层）、阶段 2（响应层 2.0）已完成并验收通过。
+当前进度：阶段 1~3（骨架与执行层、响应层 2.0、屏幕接入）已完成并验收通过。
 
 ## 硬件平台
 
@@ -28,7 +28,16 @@ idf.py -p COM5 flash monitor
 
 退出串口监视器：`Ctrl+]`。
 
-## 当前功能（阶段 1）
+首次使用（或更换字库后）还需把中文字库刷入 `storage` 分区：
+
+```bash
+python tools/gen_font.py --font data/NotoSansSC.ttf --y-offset -5 --out data/font16.bin
+python -m esptool --chip esp32s3 -p COM5 write_flash 0xC00000 data/font16.bin
+```
+
+字体源与生成细节见 `data/README.md`；字库缺失时中文显示为占位框，其余功能正常。
+
+## 当前功能（阶段 1~3）
 
 串口监视器里直接输入并回车，或按板载按键：
 
@@ -45,12 +54,16 @@ idf.py -p COM5 flash monitor
 
 按键为调试通道（绕过理解层）：KEY0 报警 / KEY1 全停 / KEY2 开灯 / KEY3 关灯。回复为组合式文本（前缀 × 主体 × 跨通道补语 × 后缀，措辞随机），细节见 `docs/STAGE2_DESIGN.md`。
 
+2.4 寸 LCD（横屏 320×240）分两区：状态区实时显示灯 / 蜂鸣器模式，对话区滚动显示「你> / 板>」交互，布局见 `docs/STAGE3_DESIGN.md`。
+
 ## 目录结构
 
 ```text
 .
 ├── main/                  # 应用入口（app_main）
 ├── components/            # 四层应用代码（目录即组件，源文件平铺）
+├── tools/                 # 字库生成脚本（gen_font.py）
+├── data/                  # 字库产物与字体源（不入库，见 data/README.md）
 ├── docs/                  # 路线图与各阶段细化设计
 ├── partitions-16MiB.csv   # 自定义分区表
 ├── sdkconfig.defaults     # 固化的关键配置（Flash / PSRAM / 分区表）
@@ -78,7 +91,7 @@ vfs 与 storage 为预留数据区，可存放模型文件与音频资源。
 
 ## 第三方代码来源
 
-`components/` 下的 BSP 驱动（`led.c/h`、`iic.c/h`、`xl9555.c/h`）移植自正点原子 DNESP32S3 配套例程 `08_iic_exio`（`components/BSP`），版权归广州市星翼电子科技有限公司所有，此处仅作学习用途；本地适配见各文件头注释。
+`components/` 下的 BSP 驱动移植自正点原子 DNESP32S3 配套例程（`led.c/h`、`iic.c/h`、`xl9555.c/h` 来自 `08_iic_exio`，`spi.c/h`、`lcd.c/h`、`lcdfont.h` 来自 `10_spilcd`），版权归广州市星翼电子科技有限公司所有，此处仅作学习用途；本地适配见各文件头注释。
 
 ## 许可证
 

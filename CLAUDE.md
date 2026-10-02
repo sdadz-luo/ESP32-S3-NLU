@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **技术路线已定**：文本 NLU。理解层先关键词规则占位，阶段 4~6 用自训
   小模型（字符级 TextCNN → int8 量化 → TFLite Micro）替换，规则降级兜底
-- **进度**：阶段 1（骨架与执行层）、阶段 2（响应层 2.0）已完成并验收通过
+- **进度**：阶段 1~3（骨架与执行层、响应层 2.0、屏幕接入）已完成并验收通过
 - 分阶段计划见 `docs/ROADMAP.md`；阶段 1 实施依据见 `docs/STAGE1_DESIGN.md`
 
 ## 架构与硬件约定
@@ -20,6 +20,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **节奏任务（`components/rhythm.c`）是全工程唯一写 XL9555 输出的地方**
   （蜂鸣器）；按键任务只读输入寄存器
 - 板载极性：LED（GPIO1）低电平点亮；蜂鸣器经 XL9555（BEEP_IO）写 0 为响
+- 屏幕：ILI9341 SPI 屏（横屏 320×240），SPI2（11/12/13），DC=GPIO40、CS=GPIO21；
+  **GPIO40 与 XL9555 INT 复用**，初始化顺序必须 `xl9555_init` 在前、`lcd_init` 在后
+- LCD/SPI 唯一写者 = display 任务（`ui.c`）；中文字库在 `storage` 分区（偏移 0，
+  NLUF 格式），生成与刷写命令见 `data/README.md`
 - `components/` 为「目录即组件」：源文件平铺、不再分二级目录；改行为前先读
   `docs/` 对应阶段的细化设计
 
