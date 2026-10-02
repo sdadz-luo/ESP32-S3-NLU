@@ -24,6 +24,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   **GPIO40 与 XL9555 INT 复用**，初始化顺序必须 `xl9555_init` 在前、`lcd_init` 在后
 - LCD/SPI 唯一写者 = display 任务（`ui.c`）；中文字库在 `storage` 分区（偏移 0，
   NLUF 格式），生成与刷写命令见 `data/README.md`
+- 回复词池（前缀/主体/补语/后缀/状态描述）在 `resp.c`，用 `tools/reply_pools.html`
+  编辑预览后导出 JSON；状态描述与屏幕状态区文案同源，改动需同步 `resp.c` 与 `ui.c`
 - `components/` 为「目录即组件」：源文件平铺、不再分二级目录；改行为前先读
   `docs/` 对应阶段的细化设计
 

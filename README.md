@@ -56,13 +56,15 @@ python -m esptool --chip esp32s3 -p COM5 write_flash 0xC00000 data/font16.bin
 
 2.4 寸 LCD（横屏 320×240）分两区：状态区实时显示灯 / 蜂鸣器模式，对话区滚动显示「你> / 板>」交互，布局见 `docs/STAGE3_DESIGN.md`。
 
+回复词池（前缀 / 主体 / 跨通道补语 / 后缀 / 状态描述）可用 `tools/reply_pools.html` 在浏览器里编辑：右侧按固件同款组合逻辑在模拟设备屏上实时预览，改完导出 JSON 即可更新固件文案。
+
 ## 目录结构
 
 ```text
 .
 ├── main/                  # 应用入口（app_main）
 ├── components/            # 四层应用代码（目录即组件，源文件平铺）
-├── tools/                 # 字库生成脚本（gen_font.py）
+├── tools/                 # 工具：字库生成（gen_font.py）、回复词池编辑（reply_pools.html）
 ├── data/                  # 字库产物与字体源（不入库，见 data/README.md）
 ├── docs/                  # 路线图与各阶段细化设计
 ├── partitions-16MiB.csv   # 自定义分区表
