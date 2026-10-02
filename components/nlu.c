@@ -25,14 +25,19 @@
 
 static const char *TAG = "nlu";
 
-/* 关键词池：说法池可按需扩充（如「停止闪烁 / 别闪了」归 led_off） */
-static const char *const W_STOP[]   = { "停止", "停下", "暂停", "全停", "别", "关闭" };
+/* 关键词池：阶段 4 以语料说法精化（与 tools/rule_baseline.py 同步维护）。
+ * 取舍原则：宁可漏认（落 unknown 拒识）不可误动作——「关 / 停」单字不收
+ * （会把「把空调关掉」「响个不停」判错）；跨设备句（灯和蜂鸣器都停）是
+ * 顺序匹配的结构短板，留给阶段 6 的模型。 */
+static const char *const W_STOP[]   = { "停止", "停下", "停掉", "暂停", "全停", "别", "关闭",
+                                        "安静", "静音", "不要", "全都", "全部", "结束", "收工", "打住" };
 static const char *const W_LED[]    = { "灯", "LED", "闪" };
-static const char *const W_BEEP[]   = { "响", "蜂鸣", "叫", "报警" };
-static const char *const W_ALARM[]  = { "报警", "警报", "急促" };
-static const char *const W_BREATH[] = { "呼吸", "慢速" };
+static const char *const W_BEEP[]   = { "响", "蜂鸣", "叫", "报警",
+                                        "喇叭", "提示音", "音", "声", "吵", "闹", "安静" };
+static const char *const W_ALARM[]  = { "报警", "警报", "急促", "不停", "快点" };
+static const char *const W_BREATH[] = { "呼吸", "慢速", "慢慢", "调慢" };
 static const char *const W_ON[]     = { "开", "亮", "点" };
-static const char *const W_OFF[]    = { "关", "灭" };
+static const char *const W_OFF[]    = { "关", "灭", "熄" };
 
 static int has_any(const char *text, const char *const *pool, size_t n)
 {

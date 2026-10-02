@@ -86,3 +86,6 @@ Desktop.ini
 # 字体源文件（OFL 字体本地保存，不入库；见 data/README.md）
 data/*.ttf
 data/*.otf
+
+# 语料生成产物（由 tools/gen_corpus.py 从语料源确定性复现；见 data/README.md）
+data/corpus/
