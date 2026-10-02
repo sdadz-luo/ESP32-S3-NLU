@@ -190,11 +190,12 @@ static void redraw_talk(void)
     }
 }
 
+/* 状态描述与回应层失败文案同源（词池编辑器「状态描述」一节的取值） */
 static const char *led_text(led_mode_t mode)
 {
     switch (mode) {
     case LED_ON:    return "常亮";
-    case LED_BLINK: return "闪烁";
+    case LED_BLINK: return "闪烁（5Hz）";
     default:        return "熄灭";
     }
 }
@@ -202,8 +203,8 @@ static const char *led_text(led_mode_t mode)
 static const char *beep_text(beep_mode_t mode)
 {
     switch (mode) {
-    case BEEP_ALARM:  return "报警";
-    case BEEP_BREATH: return "呼吸";
+    case BEEP_ALARM:  return "报警（2Hz）";
+    case BEEP_BREATH: return "呼吸提示（0.5Hz）";
     default:          return "停止";
     }
 }

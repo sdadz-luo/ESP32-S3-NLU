@@ -30,8 +30,8 @@ void resp_send(const char *text)
 }
 
 /* ---- 前后缀池（NULL 结尾，pool_pick 计数）---- */
-static const char *const PRE[] = { "", "好的，", "收到，", "没问题，", NULL };
-static const char *const SUF[] = { "", "还需要什么吗？", "随时吩咐。", NULL };
+static const char *const PRE[] = { "", "好的，", "收到，", "没问题，", "好嘞，", "明白，", "让我看看...", NULL };
+static const char *const SUF[] = { "。", "，还需要什么吗？", "，随时吩咐。", "，搞定。", "，还要调整吗？", "，随时听候差遣。", NULL };
 
 /* ---- 主体模板池 ---- */
 static const char *const BODY_LED_ON[] = {
@@ -41,7 +41,7 @@ static const char *const BODY_LED_OFF[] = {
     "灯已关闭", "灯已熄灭", "LED 已关掉", NULL,
 };
 static const char *const BODY_LED_BLINK[] = {
-    "灯开始闪烁", "灯切换为 5Hz 闪烁模式", "LED 闪起来了", NULL,
+    "灯开始闪烁", "灯切换为 5Hz 闪烁模式", "LED 闪起来了", "灯已闪烁", NULL,
 };
 static const char *const BODY_BEEP_BREATH[] = {
     "已开启呼吸提示音", "蜂鸣器开始 0.5Hz 呼吸", "呼吸提示音已打开", NULL,
@@ -90,7 +90,7 @@ static const char *led_state_text(led_mode_t mode)
 {
     switch (mode) {
     case LED_ON:    return "常亮";
-    case LED_BLINK: return "5Hz 闪烁";
+    case LED_BLINK: return "闪烁（5Hz）";
     default:        return "熄灭";
     }
 }

@@ -236,12 +236,12 @@ textarea.export { min-height: 150px; font-family: var(--font-mono); font-size: 1
 
 /* ——— 固件当前词池（与 components/resp.c 一致，2026-10-02 版）——— */
 const DEFAULT_STATE = {
-  prefixes: ["", "好的，", "收到，", "没问题，"],
-  suffixes: ["", "还需要什么吗？", "随时吩咐。"],
+  prefixes: ["", "好的，", "收到，", "没问题，", "好嘞，", "明白，", "让我看看..."],
+  suffixes: ["。", "，还需要什么吗？", "，随时吩咐。", "，搞定。", "，还要调整吗？", "，随时听候差遣。"],
   bodies: {
     led_on: ["灯已点亮", "灯切换为常亮模式", "LED 已经亮起来了"],
     led_off: ["灯已关闭", "灯已熄灭", "LED 已关掉"],
-    led_blink: ["灯开始闪烁", "灯切换为 5Hz 闪烁模式", "LED 闪起来了"],
+    led_blink: ["灯开始闪烁", "灯切换为 5Hz 闪烁模式", "LED 闪起来了", "灯已闪烁"],
     beep_breath: ["已开启呼吸提示音", "蜂鸣器开始 0.5Hz 呼吸", "呼吸提示音已打开"],
     beep_alarm: ["已开启报警提示音", "蜂鸣器进入 2Hz 报警", "报警声已响起"],
     beep_off: ["蜂鸣器已关闭", "蜂鸣器已停止", "提示音已停下"],
@@ -255,7 +255,7 @@ const DEFAULT_STATE = {
     led_blink: "（灯仍在闪烁）"
   },
   state: {
-    led_off: "熄灭", led_on: "常亮", led_blink: "5Hz 闪烁",
+    led_off: "熄灭", led_on: "常亮", led_blink: "闪烁（5Hz）",
     beep_off: "停止", beep_breath: "呼吸提示（0.5Hz）", beep_alarm: "报警（2Hz）"
   },
   fail: {
