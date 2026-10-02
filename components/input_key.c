@@ -1,15 +1,16 @@
 /**
  * @file    input_key.c
- * @brief   按键任务：轮询 XL9555 → 直调工具层（调试通道，绕过理解层）
+ * @brief   按键任务：轮询 XL9555 → 投屏幕控制命令（清屏 / 滚动）
  * @author  sdadz-luo
  *
- * 映射：KEY0 报警 / KEY1 全停 / KEY2 开灯 / KEY3 关灯
- * （见 docs/STAGE1_DESIGN.md 验收清单）。
+ * 映射：KEY0 清屏 / KEY1 下滚 / KEY2 回最新 / KEY3 上滚。
+ * 长按连滚：驱动连按模式下按住会持续返回键值，本任务按 KEY_REPEAT_MS
+ * 节流——首按立即响应，之后每档一行。
  */
 
 #include "input_key.h"
 
-#include "tools.h"
+#include "ui.h"
 #include "xl9555.h"
 
 #include "esp_log.h"
@@ -19,35 +20,51 @@
 
 static const char *TAG = "key";
 
-static void report(const char *action, esp_err_t err)
+#define KEY_REPEAT_MS   150     /* 长按连滚的重复间隔 */
+
+static void act(uint8_t key)
 {
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "%s", action);
-    } else {
-        ESP_LOGW(TAG, "%s 下发失败: %s", action, esp_err_to_name(err));
+    switch (key) {
+    case KEY0_PRES:
+        ESP_LOGI(TAG, "KEY0 -> 清屏");
+        ui_post_cmd(UI_CMD_CLEAR);
+        break;
+    case KEY1_PRES:
+        ESP_LOGI(TAG, "KEY1 -> 下滚");
+        ui_post_cmd(UI_CMD_SCROLL_DOWN);
+        break;
+    case KEY2_PRES:
+        ESP_LOGI(TAG, "KEY2 -> 回最新");
+        ui_post_cmd(UI_CMD_SCROLL_BOTTOM);
+        break;
+    case KEY3_PRES:
+        ESP_LOGI(TAG, "KEY3 -> 上滚");
+        ui_post_cmd(UI_CMD_SCROLL_UP);
+        break;
+    default:
+        break;
     }
 }
 
 void task_key(void *arg)
 {
     (void)arg;
+    uint8_t    last = 0;        /* 最近一次已处理的键值（0 = 松开） */
+    TickType_t last_tick = 0;
 
     for (;;) {
-        switch (xl9555_key_scan(0)) {   /* mode=0 不连按；内含 10ms 去抖 */
-        case KEY0_PRES:
-            report("KEY0 -> 报警", tool_beep_set(BEEP_ALARM));
-            break;
-        case KEY1_PRES:
-            report("KEY1 -> 全停", tool_stop_all());
-            break;
-        case KEY2_PRES:
-            report("KEY2 -> 开灯", tool_led_set(LED_ON));
-            break;
-        case KEY3_PRES:
-            report("KEY3 -> 关灯", tool_led_set(LED_OFF));
-            break;
-        default:
-            break;
+        uint8_t key = xl9555_key_scan(1);   /* mode=1：按住时持续返回键值 */
+
+        if (key == 0) {
+            last = 0;                       /* 松开后下次按下立即响应 */
+        } else {
+            TickType_t now = xTaskGetTickCount();
+
+            if (key != last || (now - last_tick) >= pdMS_TO_TICKS(KEY_REPEAT_MS)) {
+                act(key);
+                last = key;
+                last_tick = now;
+            }
         }
 
         vTaskDelay(pdMS_TO_TICKS(20));

@@ -1,9 +1,10 @@
 /**
  * @file    ui.c
- * @brief   屏幕 UI：对话区滚动 + 状态区轮询（320×240 横屏，16px 字号）
+ * @brief   屏幕 UI：对话区显示/回溯 + 状态区轮询（320×240 横屏，16px 字号）
  * @author  sdadz-luo
  *
  * 布局：状态区 y 0~31（含分隔线），对话区 y 38~239，行高 18px 共 11 行。
+ * 对话历史为环形缓冲（UI_HIST_LINES 行），按键经 ui_q 命令清屏/上滚/下滚/回最新。
  * 状态来源为节奏任务的状态快照（阶段 2），本任务只读。
  */
 
@@ -36,6 +37,7 @@ static const char *TAG = "ui";
 #define UI_LINE_H       18
 #define UI_TALK_LINES   ((UI_SCREEN_H - UI_TALK_Y - UI_MARGIN) / UI_LINE_H)    /* 11 行 */
 #define UI_LINE_MAX     56          /* 单行 UTF-8 字节上限（折行后片段） */
+#define UI_HIST_LINES   128         /* 对话历史深度：滚动可回溯的行数上限（约 40~60 轮） */
 
 /* 配色（lcd.h 已定义宏） */
 #define C_BG        BLACK
@@ -46,8 +48,9 @@ static const char *TAG = "ui";
 #define C_SYS       LGRAY
 
 typedef struct {
-    char in[128];
-    char out[192];
+    uint8_t kind;               /* ui_cmd_t：TALK 为对话消息，其余为屏幕命令 */
+    char    in[128];
+    char    out[192];
 } ui_msg_t;
 
 typedef struct {
@@ -57,9 +60,11 @@ typedef struct {
 
 static QueueHandle_t s_ui_q;
 
-/* 对话区行缓冲（环形，满则整体上滚一行） */
-static ui_line_t s_lines[UI_TALK_LINES];
-static int       s_line_cnt;
+/* 对话历史环形缓冲：s_head 为最旧行下标，s_cnt 为有效行数 */
+static ui_line_t s_lines[UI_HIST_LINES];
+static int       s_head;
+static int       s_cnt;
+static int       s_scroll;      /* 视口距底部的行数，0 = 跟随最新 */
 
 void ui_init(void)
 {
@@ -69,7 +74,7 @@ void ui_init(void)
 
 void ui_post(const char *in, const char *out)
 {
-    ui_msg_t msg = {0};
+    ui_msg_t msg = {0};     /* kind = UI_CMD_TALK（枚举值 0） */
 
     if (s_ui_q == NULL) {
         return;                 /* 任务启动前（理论上不会）静默丢弃 */
@@ -82,6 +87,20 @@ void ui_post(const char *in, const char *out)
 
     if (xQueueSend(s_ui_q, &msg, 0) != pdTRUE) {
         ESP_LOGW(TAG, "ui_q 满，丢弃显示: %s", msg.out);
+    }
+}
+
+void ui_post_cmd(ui_cmd_t cmd)
+{
+    ui_msg_t msg = {0};
+
+    if (s_ui_q == NULL) {
+        return;
+    }
+
+    msg.kind = (uint8_t)cmd;
+    if (xQueueSend(s_ui_q, &msg, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "ui_q 满，丢弃屏幕命令: %d", (int)cmd);
     }
 }
 
@@ -121,17 +140,20 @@ static uint16_t draw_text(uint16_t x, uint16_t y, const char *utf8, uint16_t col
     return x;
 }
 
-/* 压入一行（含上滚），确保以 '\0' 结尾 */
+/* 压入一行（历史满则丢弃最旧），确保以 '\0' 结尾 */
 static void line_push(const char *s, uint16_t color)
 {
-    if (s_line_cnt == UI_TALK_LINES) {
-        memmove(&s_lines[0], &s_lines[1], sizeof(ui_line_t) * (UI_TALK_LINES - 1));
-        s_line_cnt--;
+    int idx;
+
+    if (s_cnt == UI_HIST_LINES) {
+        s_head = (s_head + 1) % UI_HIST_LINES;
+        s_cnt--;
     }
 
-    snprintf(s_lines[s_line_cnt].text, UI_LINE_MAX, "%s", s);
-    s_lines[s_line_cnt].color = color;
-    s_line_cnt++;
+    idx = (s_head + s_cnt) % UI_HIST_LINES;
+    snprintf(s_lines[idx].text, UI_LINE_MAX, "%s", s);
+    s_lines[idx].color = color;
+    s_cnt++;
 }
 
 /* 按像素宽折行后压入（prefix 只加在首行）；长度双保险不越界 */
@@ -180,14 +202,81 @@ static void push_text(const char *prefix, const char *text, uint16_t color)
     }
 }
 
+/* 视口可上滚的最大行数（历史不足一屏时为 0） */
+static int max_scroll(void)
+{
+    return (s_cnt > UI_TALK_LINES) ? (s_cnt - UI_TALK_LINES) : 0;
+}
+
+/* 右缘 2px 指示条：标记视口在历史中的位置；无可滚内容时不画（背景已清） */
+static void draw_scrollbar(int first)
+{
+    int span  = max_scroll();
+    int track = UI_TALK_LINES * UI_LINE_H;
+    int thumb, y;
+
+    if (span == 0) {
+        return;
+    }
+
+    thumb = track * UI_TALK_LINES / s_cnt;
+    if (thumb < 12) {
+        thumb = 12;
+    }
+    y = UI_TALK_Y + (track - thumb) * first / span;
+    fill_rect(UI_SCREEN_W - 2, (uint16_t)y, UI_SCREEN_W - 1, (uint16_t)(y + thumb - 1), GRAY);
+}
+
 static void redraw_talk(void)
 {
+    int first;      /* 视口首行在历史中的序号 */
+
+    if (s_scroll > max_scroll()) {
+        s_scroll = max_scroll();    /* 索引兜底，防历史长度变化后越界 */
+    }
+    first = s_cnt - UI_TALK_LINES - s_scroll;
+    if (first < 0) {
+        first = 0;
+    }
+
     fill_rect(0, UI_TALK_Y, UI_SCREEN_W - 1, UI_SCREEN_H - 1, C_BG);
 
-    for (int i = 0; i < s_line_cnt; i++) {
-        draw_text(UI_MARGIN, (uint16_t)(UI_TALK_Y + i * UI_LINE_H),
-                  s_lines[i].text, s_lines[i].color);
+    for (int i = 0; i < UI_TALK_LINES && first + i < s_cnt; i++) {
+        const ui_line_t *l = &s_lines[(s_head + first + i) % UI_HIST_LINES];
+
+        draw_text(UI_MARGIN, (uint16_t)(UI_TALK_Y + i * UI_LINE_H), l->text, l->color);
     }
+
+    draw_scrollbar(first);
+}
+
+/* 屏幕命令：改视口/历史后重绘对话区 */
+static void on_cmd(ui_cmd_t cmd)
+{
+    switch (cmd) {
+    case UI_CMD_SCROLL_UP:
+        if (s_scroll < max_scroll()) {
+            s_scroll++;
+        }
+        break;
+    case UI_CMD_SCROLL_DOWN:
+        if (s_scroll > 0) {
+            s_scroll--;
+        }
+        break;
+    case UI_CMD_SCROLL_BOTTOM:
+        s_scroll = 0;
+        break;
+    case UI_CMD_CLEAR:
+        s_head = 0;
+        s_cnt = 0;
+        s_scroll = 0;
+        break;
+    default:
+        return;
+    }
+
+    redraw_talk();
 }
 
 /* 状态描述与回应层失败文案同源（词池编辑器「状态描述」一节的取值） */
@@ -232,6 +321,12 @@ void task_display(void *arg)
 
     for (;;) {
         if (xQueueReceive(s_ui_q, &msg, pdMS_TO_TICKS(200)) == pdTRUE) {
+            if (msg.kind != UI_CMD_TALK) {
+                on_cmd((ui_cmd_t)msg.kind);
+                continue;
+            }
+
+            s_scroll = 0;       /* 新对话：视口回到最新 */
             if (msg.in[0] != '\0') {
                 push_text("你> ", msg.in, C_INPUT);
                 push_text("板> ", msg.out, C_REPLY);
