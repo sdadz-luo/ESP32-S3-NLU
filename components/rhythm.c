@@ -30,6 +30,11 @@
 
 #define NO_DEADLINE  (-1)               /* next_us 哨兵：无待翻转 */
 
+/* 模式快照：写者唯一 = 本任务（led_apply / beep_apply 内更新），
+ * 读者 = 响应层等；单字节对齐读写原子，volatile 防编译器缓存 */
+static volatile led_mode_t  s_led_mode  = LED_OFF;
+static volatile beep_mode_t s_beep_mode = BEEP_OFF;
+
 /* 一路节奏通道：既有模式、下次翻转时刻、半周期、当前电平（1=亮/响） */
 typedef struct {
     uint8_t mode;
@@ -48,6 +53,7 @@ static void beep_out(uint8_t on)
 static void led_apply(rhythm_ch_t *ch, led_mode_t mode, int64_t now)
 {
     ch->mode = (uint8_t)mode;
+    s_led_mode = mode;
 
     switch (mode) {
     case LED_OFF:
@@ -72,6 +78,7 @@ static void led_apply(rhythm_ch_t *ch, led_mode_t mode, int64_t now)
 static void beep_apply(rhythm_ch_t *ch, beep_mode_t mode, int64_t now)
 {
     ch->mode = (uint8_t)mode;
+    s_beep_mode = mode;
 
     switch (mode) {
     case BEEP_OFF:
@@ -121,6 +128,16 @@ static TickType_t wait_ticks(int64_t wait_us)
     }
 
     return (TickType_t)((wait_us * configTICK_RATE_HZ + 999999) / 1000000);
+}
+
+led_mode_t rhythm_led_mode(void)
+{
+    return s_led_mode;
+}
+
+beep_mode_t rhythm_beep_mode(void)
+{
+    return s_beep_mode;
 }
 
 void task_rhythm(void *arg)

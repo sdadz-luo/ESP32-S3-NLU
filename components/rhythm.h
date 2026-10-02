@@ -7,9 +7,15 @@
 #ifndef RHYTHM_H
 #define RHYTHM_H
 
+#include "app_types.h"
+
 /* 维护 LED / 蜂鸣器两路模式与下次翻转时刻；阻塞在 g_rhythm_q 上，
  * 超时到点翻转、收到命令立即应用新模式基态。
  * 优先级 8，栈 3072，绑 Core 1（机制详见 docs/STAGE1_DESIGN.md 节奏引擎）。 */
 void task_rhythm(void *arg);
+
+/* 当前模式快照（写者唯一 = 节奏任务；读者免锁，快照可能滞后于最新命令） */
+led_mode_t  rhythm_led_mode(void);
+beep_mode_t rhythm_beep_mode(void);
 
 #endif /* RHYTHM_H */

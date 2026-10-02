@@ -121,11 +121,9 @@ void task_nlu(void *arg)
                  INTENT_NAME[intent]);  /* 串口日志兼作阶段 4 语料来源 */
 
         if (err != ESP_OK) {
-            /* rhythm_q 满属异常（深度 4）；如实告知失败，不谎报执行成功 */
+            /* rhythm_q 满属异常（深度 4） */
             ESP_LOGW(TAG, "命令下发失败: %s", esp_err_to_name(err));
-            resp_send("执行失败：内部命令繁忙，请重试");
-        } else {
-            resp_send(resp_for_intent(intent));
         }
+        resp_compose(intent, err == ESP_OK); /* 组合式回复（阶段 2） */
     }
 }

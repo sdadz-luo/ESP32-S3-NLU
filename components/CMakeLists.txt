@@ -15,5 +15,5 @@ idf_component_register(
         "iic.c"
         "xl9555.c"
     INCLUDE_DIRS "."
-    PRIV_REQUIRES driver esp_driver_gpio esp_timer
+    PRIV_REQUIRES driver esp_driver_gpio esp_timer esp_hw_support
 )
