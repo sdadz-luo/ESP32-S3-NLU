@@ -50,7 +50,9 @@ void app_hw_init(void)
 
 void app_tasks_start(void)
 {
-    /* 先建消费者/执行汇点，后建生产者：任何首次投递发生时下游都已存在 */
+    /* 先建消费者/执行汇点，后建生产者：任何首次投递发生时下游都已存在。
+     * 栈为 2026-10-02 实测校准（10 分钟连跑最小余量：rhythm 1980 / nlu 2576 /
+     * key 1812 / serial 1720 B，要求 >=500 B）；nlu 余量留作阶段 6 模型推理 */
     assert(xTaskCreatePinnedToCore(task_rhythm, "rhythm", 3072, NULL, 8, NULL, 1) == pdPASS);
     assert(xTaskCreatePinnedToCore(task_nlu,    "nlu",    4096, NULL, 5, NULL, 1) == pdPASS);
     assert(xTaskCreatePinnedToCore(task_key,    "key",    3072, NULL, 6, NULL, 1) == pdPASS);
