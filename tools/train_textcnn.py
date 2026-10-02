@@ -21,7 +21,7 @@ sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
 
 import numpy as np
 
-from nlu_data import LABELS, compute_max_len, load_split, load_vocab
+from nlu_data import LABELS, CharEmbedding, compute_max_len, load_split, load_vocab
 
 import tensorflow as tf
 from tensorflow import keras
@@ -35,7 +35,7 @@ def set_seed(seed):
 
 def build_model(vocab_size, n_classes, max_len):
     inp = keras.Input(shape=(max_len,), dtype="int32")
-    emb = keras.layers.Embedding(vocab_size, 32)(inp)
+    emb = CharEmbedding(vocab_size, 32)(inp)
     convs = [keras.layers.GlobalMaxPooling1D()(
                  keras.layers.Conv1D(64, k, activation="relu")(emb))
              for k in (2, 3, 4)]

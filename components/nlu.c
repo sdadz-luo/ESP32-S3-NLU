@@ -3,15 +3,17 @@
  * @brief   理解层：cmd_q 消费循环 + 关键词规则（阶段 6 由模型替换）
  * @author  sdadz-luo
  *
- * 规则表与匹配优先级见 docs/STAGE1_DESIGN.md「行为规格」：按序 strstr
- * 子串匹配（UTF-8 安全）。阶段 1 占位：阶段 4 以语料为准精化，阶段 6
- * 由端侧模型替换、规则降级为兜底。
+ * 双层决策（阶段 6）：TFLM 模型输出 top-1 概率 ≥ NLU_CONF_THRESHOLD 则采用
+ * 模型结果，否则回退关键词规则；模型不可用（init 失败）时永久降级纯规则。
+ * 规则表与匹配优先级见 docs/STAGE1_DESIGN.md「行为规格」（按序 strstr 子串
+ * 匹配，UTF-8 安全，阶段 4 以语料精化）；模型侧封装见 nlu_model.cc。
  */
 
 #include "nlu.h"
 
 #include "app_queues.h"
 #include "app_types.h"
+#include "nlu_model.h"
 #include "resp.h"
 #include "tools.h"
 
@@ -21,6 +23,7 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
+#include <stdbool.h>
 #include <string.h>
 
 static const char *TAG = "nlu";
@@ -89,6 +92,29 @@ intent_t nlu_understand(const char *text)
     return I_UNKNOWN;                   /* 10 其余 */
 }
 
+/* 双层决策阈值：test 集扫描最优区间 0.45~0.75（99.1%），取 0.70——区间上部
+ * 更保守，边界置信度交给规则兜底（见 data/model/threshold_report.md） */
+#define NLU_CONF_THRESHOLD  0.70f
+
+/* 模型高置信优先；否则规则兜底。by_model / conf_out 供日志与调优分析 */
+static intent_t decide(const char *text, bool *by_model, float *conf_out)
+{
+    int m_intent = 0;
+    float conf = 0.0f;
+
+    *by_model = false;
+    *conf_out = 0.0f;
+
+    if (nlu_model_predict(text, &m_intent, &conf) == ESP_OK) {
+        *conf_out = conf;
+        if (conf >= NLU_CONF_THRESHOLD) {
+            *by_model = true;
+            return (intent_t)m_intent;
+        }
+    }
+    return nlu_understand(text);
+}
+
 /* 意图 → 工具调用；I_UNKNOWN 无动作，视为成功 */
 static esp_err_t dispatch(intent_t intent)
 {
@@ -114,16 +140,40 @@ void task_nlu(void *arg)
     (void)arg;
     cmd_msg_t msg;
 
+    if (nlu_model_init() != ESP_OK) {
+        ESP_LOGW(TAG, "模型初始化失败，降级纯规则");
+    }
+
+    bool watermark_done = false;
+
     for (;;) {
         if (xQueueReceive(g_cmd_q, &msg, portMAX_DELAY) != pdTRUE) {
             continue;
         }
 
-        intent_t intent = nlu_understand(msg.text);
+        /* 首次完整走完推理路径后打印栈水位（阶段 6 验收项，8192 的余量自检） */
+        if (!watermark_done) {
+            watermark_done = true;
+            ESP_LOGI(TAG, "栈水位余 %u B",
+                     (unsigned)(uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t)));
+        }
+
+        bool by_model = false;
+        float conf = 0.0f;
+        intent_t intent = decide(msg.text, &by_model, &conf);
         esp_err_t err = dispatch(intent);
 
-        ESP_LOGI(TAG, "src=%u \"%s\" -> %s", (unsigned)msg.src, msg.text,
-                 INTENT_NAME[intent]);  /* 串口日志兼作阶段 4 语料来源 */
+        /* 日志带判定来源与模型置信度（阶段 6 阈值调优依据） */
+        if (by_model) {
+            ESP_LOGI(TAG, "src=%u \"%s\" -> %s (model %.2f)", (unsigned)msg.src,
+                     msg.text, INTENT_NAME[intent], conf);
+        } else if (conf > 0.0f) {
+            ESP_LOGI(TAG, "src=%u \"%s\" -> %s (rule, model %.2f)",
+                     (unsigned)msg.src, msg.text, INTENT_NAME[intent], conf);
+        } else {
+            ESP_LOGI(TAG, "src=%u \"%s\" -> %s (rule)", (unsigned)msg.src,
+                     msg.text, INTENT_NAME[intent]);
+        }
 
         if (err != ESP_OK) {
             /* rhythm_q 满属异常（深度 4） */

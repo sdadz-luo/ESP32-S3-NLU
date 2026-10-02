@@ -11,9 +11,10 @@ TFLite 全整型转换：权重 / 激活 int8；**输入输出类型不显式设
 用法（工程根目录，用工程 .venv）：
   .venv/Scripts/python.exe tools/quantize_tflite.py
 
-产物（data/model/）：
-  model_int8.tflite / model_int8.cc / model_int8.h
-  quant_report.md     量化对比报告
+产物：
+  data/model/model_int8.tflite + quant_report.md（不入库存档）
+  components/nlu_model_data.cc/h、components/nlu_vocab.h
+  （固件编译输入，入库；更新模型 = 重跑本脚本 + 重新构建）
 """
 import argparse
 import sys
@@ -23,7 +24,7 @@ sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
 
 import numpy as np
 
-from nlu_data import LABELS, compute_max_len, load_split, load_vocab
+from nlu_data import LABELS, CharEmbedding, compute_max_len, load_split, load_vocab
 
 import tensorflow as tf
 from tensorflow import keras
@@ -60,23 +61,44 @@ def run_tflite(tflite_bytes, x_test):
     return np.array(preds)
 
 
-def export_c_array(data, cc_path, h_path, name="g_model_int8"):
-    """导出 xxd 风格 C 数组（alignas(8)，供 TFLM 直接引用）。"""
-    hexs = [f"0x{b:02x}" for b in data]
+def export_firmware_sources(model_bytes, vocab_lines, max_len, fw_dir):
+    """生成固件编译输入（入库）：nlu_model_data.cc/h + nlu_vocab.h。
+
+    模型数组 alignas(8) 供 TFLM 直接引用（flash rodata 零拷贝）；
+    词表码点表以 id 为下标（<pad>/<unk> 位置填 0 占位），C 侧查找免偏移。
+    """
+    fw_dir.mkdir(parents=True, exist_ok=True)
+
+    hexs = [f"0x{b:02x}" for b in model_bytes]
     rows = ["    " + ", ".join(hexs[i:i + 12]) + "," for i in range(0, len(hexs), 12)]
-    cc_path.write_text(
-        "// 由 tools/quantize_tflite.py 生成，勿手改。\n"
-        f"// int8 全整型量化模型（{len(data)} 字节），评估见 quant_report.md\n"
-        f'#include "{h_path.name}"\n\n'
-        f"alignas(8) const unsigned char {name}[] = {{\n"
+    (fw_dir / "nlu_model_data.cc").write_text(
+        "// 由 tools/quantize_tflite.py 生成，勿手改（重新量化会覆盖）。\n"
+        f"// int8 全整型模型（{len(model_bytes)} 字节），评估见 data/model/quant_report.md\n"
+        '#include "nlu_model_data.h"\n\n'
+        "alignas(8) const unsigned char g_nlu_model[] = {\n"
         + "\n".join(rows) + "\n};\n"
-        f"const unsigned int {name}_len = {len(data)};\n",
+        f"const unsigned int g_nlu_model_len = {len(model_bytes)};\n",
         encoding="utf-8", newline="\n")
-    h_path.write_text(
+    (fw_dir / "nlu_model_data.h").write_text(
         "// 由 tools/quantize_tflite.py 生成，勿手改。\n"
-        "#ifndef MODEL_INT8_H\n#define MODEL_INT8_H\n\n"
-        f"extern const unsigned char {name}[];\n"
-        f"extern const unsigned int {name}_len;\n\n"
+        "#ifndef NLU_MODEL_DATA_H\n#define NLU_MODEL_DATA_H\n\n"
+        f"#define NLU_MAX_LEN {max_len}\n\n"
+        "extern const unsigned char g_nlu_model[];\n"
+        "extern const unsigned int g_nlu_model_len;\n\n"
+        "#endif\n",
+        encoding="utf-8", newline="\n")
+
+    cps = [0, 0] + [ord(line[0]) for line in vocab_lines[2:]]  # [0]/[1] 为 <pad>/<unk> 占位
+    vrows = ["    " + ", ".join(f"0x{c:04x}" for c in cps[i:i + 10]) + ","
+             for i in range(0, len(cps), 10)]
+    (fw_dir / "nlu_vocab.h").write_text(
+        "// 由 tools/quantize_tflite.py 生成，勿手改。\n"
+        "// 词表码点表：下标即 token id（id 0/1 为 <pad>/<unk> 占位）\n"
+        "#ifndef NLU_VOCAB_H\n#define NLU_VOCAB_H\n\n"
+        "#include <stdint.h>\n\n"
+        f"#define NLU_VOCAB_SIZE {len(cps)}\n\n"
+        "static const uint16_t s_nlu_vocab[NLU_VOCAB_SIZE] = {\n"
+        + "\n".join(vrows) + "\n};\n\n"
         "#endif\n",
         encoding="utf-8", newline="\n")
 
@@ -86,17 +108,21 @@ def main():
     ap = argparse.ArgumentParser(description="int8 全整型量化与导出（阶段 5）")
     ap.add_argument("--corpus", default=str(root / "data" / "corpus"))
     ap.add_argument("--model", default=str(root / "data" / "model"))
+    ap.add_argument("--fw-dir", default=str(root / "components"),
+                    help="固件源文件输出目录（生成文件入库）")
     args = ap.parse_args()
 
     corpus = Path(args.corpus)
     mdir = Path(args.model)
+    fw_dir = Path(args.fw_dir)
 
     vocab = load_vocab(corpus / "vocab.txt")
     max_len = compute_max_len(corpus)
     x_train, y_train = load_split(corpus, "train", vocab, max_len)
     x_test, y_test = load_split(corpus, "test", vocab, max_len)
 
-    model = keras.models.load_model(mdir / "model_float.keras")
+    model = keras.models.load_model(mdir / "model_float.keras",
+                                    custom_objects={"CharEmbedding": CharEmbedding})
 
     rep, rep_n = make_rep_dataset(x_train, y_train)
     conv = tf.lite.TFLiteConverter.from_keras_model(model)
@@ -108,7 +134,8 @@ def main():
     # 输出 float32（argmax 取类，与 int8 输出等价）
     tflite_bytes = conv.convert()
     (mdir / "model_int8.tflite").write_bytes(tflite_bytes)
-    export_c_array(tflite_bytes, mdir / "model_int8.cc", mdir / "model_int8.h")
+    vocab_lines = (corpus / "vocab.txt").read_text(encoding="utf-8").splitlines()
+    export_firmware_sources(tflite_bytes, vocab_lines, max_len, fw_dir)
 
     pred_f = model.predict(x_test, verbose=0).argmax(axis=1)
     pred_q = run_tflite(tflite_bytes, x_test)
@@ -128,8 +155,8 @@ def main():
         f"- int8 模型：{acc_q * 100:.1f}%",
         f"- 掉点：{drop:.2f} 个百分点（验收标准 ≤ 2）", "",
         f"## 判定：{'达标' if drop <= 2 else '**未达标，需排查**'}", "",
-        "产物：`model_int8.tflite` / `model_int8.cc` / `model_int8.h`"
-        "（C 数组，阶段 6 编译进固件）", "",
+        "产物：`data/model/model_int8.tflite`（存档）；`components/nlu_model_data.cc/h`、"
+        "`components/nlu_vocab.h`（固件编译输入，入库）", "",
     ]
     (mdir / "quant_report.md").write_text("\n".join(rep_lines),
                                           encoding="utf-8", newline="\n")

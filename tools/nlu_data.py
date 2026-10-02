@@ -7,12 +7,37 @@
 """
 from pathlib import Path
 
+import tensorflow as tf
+from tensorflow import keras
+
 # 标签索引 = intent_t 枚举序（components/app_types.h），改枚举须同步此处
 LABELS = ["unknown", "led_on", "led_off", "led_blink",
           "beep_breath", "beep_alarm", "beep_off", "stop"]
 
 PAD_ID = 0
 UNK_ID = 1
+
+
+class CharEmbedding(keras.layers.Layer):
+    """字符查表嵌入：等价 Keras Embedding，但用裸 tf.gather。
+
+    不用 keras.layers.Embedding 的原因：其负索引语义会在转换后的图里引入
+    LESS / ADD / SELECT_V2 三个算子，而 TFLM 的 SELECT_V2 不支持 int32
+    （token id 输入正是 int32），板端 Invoke 会失败。裸 gather 无此逻辑。
+    训练（train_textcnn）与量化（quantize_tflite 反序列化）共用。
+    """
+
+    def __init__(self, vocab_size, dim, **kwargs):
+        super().__init__(**kwargs)
+        self.vocab_size = vocab_size
+        self.dim = dim
+
+    def build(self, _input_shape):
+        self.table = self.add_weight(name="table", shape=(self.vocab_size, self.dim),
+                                     initializer="uniform", trainable=True)
+
+    def call(self, x):
+        return tf.gather(self.table, x)
 
 
 def load_vocab(path):

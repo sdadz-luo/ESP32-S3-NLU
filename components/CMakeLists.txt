@@ -18,6 +18,9 @@ idf_component_register(
         "lcd.c"
         "font16.c"
         "ui.c"
+        "nlu_model.cc"
+        "nlu_model_data.cc"
     INCLUDE_DIRS "."
     PRIV_REQUIRES driver esp_driver_gpio esp_driver_spi esp_timer esp_hw_support esp_partition
+                   espressif__esp-tflite-micro
 )

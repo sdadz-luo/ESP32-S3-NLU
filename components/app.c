@@ -63,10 +63,11 @@ void app_hw_init(void)
 void app_tasks_start(void)
 {
     /* 先建消费者/执行汇点，后建生产者：任何首次投递发生时下游都已存在。
-     * 栈为 2026-10-02 实测校准（最小余量：rhythm 1968 / nlu 2684 / key 1832 /
-     * serial 1724 / display 2400 B，要求 >=500 B）；nlu 余量留给阶段 6 推理 */
+     * 栈为实测校准（要求余量 >=500 B）：阶段 1~3 记录 rhythm 1968 / key 1832 /
+     * serial 1724 / display 2400 B；nlu 4096→8192 为阶段 6 TFLM 推理加量，
+     * 实测水位后回填 */
     assert(xTaskCreatePinnedToCore(task_rhythm,  "rhythm",  3072, NULL, 8, NULL, 1) == pdPASS);
-    assert(xTaskCreatePinnedToCore(task_nlu,     "nlu",     4096, NULL, 5, NULL, 1) == pdPASS);
+    assert(xTaskCreatePinnedToCore(task_nlu,     "nlu",     8192, NULL, 5, NULL, 1) == pdPASS);
     assert(xTaskCreatePinnedToCore(task_key,     "key",     3072, NULL, 6, NULL, 1) == pdPASS);
     assert(xTaskCreatePinnedToCore(task_serial,  "serial",  3072, NULL, 4, NULL, 1) == pdPASS);
     assert(xTaskCreatePinnedToCore(task_display, "display", 4096, NULL, 3, NULL, 1) == pdPASS);
