@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **技术路线已定**：文本 NLU。理解层先关键词规则占位，阶段 4~6 用自训
   小模型（字符级 TextCNN → int8 量化 → TFLite Micro）替换，规则降级兜底
-- **进度**：阶段 1~5（骨架与执行层、响应层 2.0、屏幕接入、数据工程、模型训练与量化）已完成并验收通过；下一步阶段 6（端侧集成）
+- **进度**：阶段 1~6（骨架与执行层、响应层 2.0、屏幕接入、数据工程、模型训练与量化、端侧集成）已完成并验收通过；下一步阶段 7（WiFi 通道）
 - 分阶段计划见 `docs/ROADMAP.md`；各阶段实施依据与验收记录见 `docs/STAGE*_DESIGN.md`
 
 ## 架构与硬件约定
@@ -29,6 +29,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   编辑预览后导出 JSON；状态描述与屏幕状态区文案同源，改动需同步 `resp.c` 与 `ui.c`
 - 规则词池有两份副本：`nlu.c` 与 `tools/rule_baseline.py`，改一处须同步另一处；
   词池精化以 `tools/intents.json` 的语料说法为准（取舍原则与验收见 `docs/STAGE4_DESIGN.md`）
+- 理解层双层决策（阶段 6）：TextCNN 模型（`nlu_model.cc`，数据 `nlu_model_data.cc`
+  由量化脚本生成、入库）置信度 ≥ `NLU_CONF_THRESHOLD`（nlu.c，test 集扫描选定）
+  优先，否则规则兜底；更新模型 = 重跑 `tools/train_textcnn.py` +
+  `tools/quantize_tflite.py` + 重新构建
 - `components/` 为「目录即组件」：源文件平铺、不再分二级目录；改行为前先读
   `docs/` 对应阶段的细化设计
 

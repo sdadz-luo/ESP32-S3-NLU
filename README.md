@@ -2,7 +2,7 @@
 
 基于正点原子 DNESP32S3 开发板的学习型工程：在 ESP32-S3 上跑 NLU（自然语言理解）模型——串口 / WiFi 输入自然语言，板载意图识别后调用片上工具（LED / 蜂鸣器，后续加 LCD）。技术路线：理解层先关键词规则占位，阶段 4~6 用自训 int8 小模型（TFLite Micro）替换。
 
-当前进度：阶段 1~5（骨架与执行层、响应层 2.0、屏幕接入、数据工程、模型训练与量化）已完成并验收通过；下一步阶段 6（端侧集成：模型上线 + 规则兜底）。
+当前进度：阶段 1~6（骨架与执行层、响应层 2.0、屏幕接入、数据工程、模型训练与量化、端侧集成）已完成并验收通过；下一步阶段 7（WiFi 通道）。
 
 ## 硬件平台
 
@@ -37,7 +37,9 @@ python -m esptool --chip esp32s3 -p COM5 write_flash 0xC00000 data/font16.bin
 
 字体源与生成细节见 `data/README.md`；字库缺失时中文显示为占位框，其余功能正常。
 
-## 当前功能（阶段 1~3）
+## 当前功能
+
+理解层为**双层决策**（阶段 6）：字符级 TextCNN（int8，43 KB，编译进固件）给出意图与置信度，置信度 ≥ 0.70 直接采用；否则回退关键词规则兜底；都不中则拒识。测试集准确率 98.9%（规则基线 82.8%），模型不可用时自动降级纯规则。
 
 串口监视器里直接输入并回车，或按板载按键：
 
@@ -65,6 +67,10 @@ python -m esptool --chip esp32s3 -p COM5 write_flash 0xC00000 data/font16.bin
 ## 模型训练与量化（阶段 5）
 
 字符级 TextCNN（TensorFlow / Keras）由 `tools/train_textcnn.py` 训练、`tools/quantize_tflite.py` 做 int8 全整型量化并导出 C 数组，产物在 `data/model/`（不入库）。当前成绩：test 准确率 98.9%（规则基线 82.8%）；int8 模型 43.8 KB、零掉点。设计与验收记录见 `docs/STAGE5_DESIGN.md`。
+
+## 端侧集成（阶段 6）
+
+模型与词表由 `tools/quantize_tflite.py` 导出为固件源文件（`components/nlu_model_data.cc/h`、`components/nlu_vocab.h`，入库）；`components/nlu_model.cc` 封装 C 侧 tokenizer（UTF-8 → 词表 → token id）与 TFLM 推理；`components/nlu.c` 实现双层决策。阈值由 `tools/tune_threshold.py` 在 test 集扫描选定，现编句验收用 `tools/accept_stage6.py`。验收记录见 `docs/STAGE6_DESIGN.md`。
 
 ## 目录结构
 
