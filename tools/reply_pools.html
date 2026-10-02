@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>回复词池编辑器</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 布局概念：左侧词池编辑 + 右侧「设备屏」实时预览，屏上按固件同款配色与 16px 行高渲染 */
+:root {
+  --bg: #f4f3ef;
+  --panel: #ffffff;
+  --fg: #1c1f21;
+  --muted: #6a7176;
+  --line: #dcd9d2;
+  --chip: #eceae4;
+  --accent: #0d7285;
+  --accent-ink: #ffffff;
+  --danger: #a33a2a;
+  --screen-bg: #000000;
+  --screen-fg: #ffffff;
+  --screen-cyan: #00ffff;
+  --screen-gray: #c6c6c6;
+  --screen-div: #848462;
+  --font-ui: system-ui, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131619;
+    --panel: #1a1f23;
+    --fg: #e7eaec;
+    --muted: #98a1a8;
+    --line: #2b3237;
+    --chip: #232a2f;
+    --accent: #35c9dd;
+    --accent-ink: #062226;
+    --danger: #e08a78;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131619;
+  --panel: #1a1f23;
+  --fg: #e7eaec;
+  --muted: #98a1a8;
+  --line: #2b3237;
+  --chip: #232a2f;
+  --accent: #35c9dd;
+  --accent-ink: #062226;
+  --danger: #e08a78;
+  color-scheme: dark;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.6;
+}
+main { max-width: 1080px; margin: 0 auto; padding-block: 28px 64px; padding-inline: 16px; }
+h1 { font-size: 22px; margin: 0 0 4px; text-wrap: balance; }
+h2 { font-size: 15px; margin: 0; letter-spacing: .01em; }
+.lede { color: var(--muted); margin: 0 0 20px; max-width: 60ch; }
+.layout { display: grid; gap: 20px; }
+@media (min-width: 920px) {
+  .layout { grid-template-columns: 1fr 400px; grid-template-areas: "editor preview"; align-items: start; }
+  .col-preview { grid-area: preview; position: sticky; top: 20px; }
+  .col-editor { grid-area: editor; }
+}
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.card > header { display: flex; align-items: baseline; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.card > header .hint { color: var(--muted); font-size: 12.5px; }
+.card .body { padding: 12px 16px 16px; }
+.row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.row:first-child { margin-top: 0; }
+input[type="text"], textarea, select {
+  font-family: inherit; font-size: 14px; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; min-width: 0; width: 100%;
+}
+input[type="text"]:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+button {
+  font-family: inherit; font-size: 13.5px; color: var(--fg); background: var(--chip);
+  border: 1px solid var(--line); border-radius: 7px; padding: 6px 11px; cursor: pointer; white-space: nowrap;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.icon { padding: 4px 9px; color: var(--muted); }
+button.icon:hover { color: var(--danger); border-color: var(--danger); }
+.tag { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.pools { display: grid; gap: 20px; }
+.grid2 { display: grid; gap: 20px; }
+@media (min-width: 620px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+/* ——— 设备屏预览 ——— */
+.screen-wrap { overflow-x: auto; }
+.screen {
+  width: 320px; height: 240px; background: var(--screen-bg); border-radius: 6px;
+  font-size: 16px; line-height: 18px; overflow: hidden; position: relative;
+  border: 6px solid #2b2b2b; box-sizing: content-box;
+}
+.s-status { height: 32px; display: flex; align-items: center; padding: 0 6px; color: var(--screen-fg); white-space: pre; }
+.s-divider { height: 2px; background: var(--screen-div); }
+.s-talk { padding: 6px 6px 0; }
+.s-line { min-height: 18px; white-space: pre-wrap; word-break: break-all; }
+.s-in { color: var(--screen-cyan); }
+.s-out { color: var(--screen-fg); }
+.s-sys { color: var(--screen-gray); }
+.part-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.part { font-size: 12.5px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; color: var(--muted); }
+.part b { color: var(--fg); font-weight: 500; }
+.controls { display: grid; gap: 10px; margin-top: 14px; }
+.ctl-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ctl-row > label { color: var(--muted); font-size: 13px; min-width: 52px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: transparent; padding: 5px 10px; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.note { color: var(--muted); font-size: 12.5px; margin-top: 10px; }
+textarea.export { min-height: 150px; font-family: var(--font-mono); font-size: 12px; white-space: pre; }
+.toast { color: var(--accent); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<main>
+  <h1>回复词池编辑器</h1>
+  <p class="lede">改右侧词池，左侧「设备屏」会按固件同样的组合逻辑（前缀 × 主体 × 跨通道补语 × 后缀）实时预览。改动自动暂存在本浏览器；改完后导出 JSON 发给我，即可更新固件文案。</p>
+
+  <div class="layout">
+    <!-- 预览列 -->
+    <div class="col-preview">
+      <div class="card">
+        <header>
+          <h2>设备屏预览</h2>
+          <span class="hint">320×240 · 16px</span>
+        </header>
+        <div class="body">
+          <div class="screen-wrap">
+            <div class="screen">
+              <div class="s-status" id="sStatus"></div>
+              <div class="s-divider"></div>
+              <div class="s-talk" id="sTalk"></div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <div class="ctl-row">
+              <label>灯状态</label>
+              <span class="seg" id="segLed"></span>
+            </div>
+            <div class="ctl-row">
+              <label>蜂鸣器</label>
+              <span class="seg" id="segBeep"></span>
+            </div>
+            <div class="ctl-row">
+              <label>当前意图</label>
+              <select id="selIntent"></select>
+            </div>
+            <div class="ctl-row">
+              <label for="inSample">输入样例</label>
+              <input type="text" id="inSample" value="开灯">
+            </div>
+            <div class="ctl-row">
+              <button class="primary" id="btnRoll">再抽一次</button>
+              <span class="tag" id="byteInfo"></span>
+            </div>
+          </div>
+
+          <div class="part-row" id="parts"></div>
+          <p class="note">预览按固件相同规则组合：LED 类命令在蜂鸣器非停止时追加补语，蜂鸣器类命令在灯非熄灭时追加补语。回复超过 192 字节会被 C 侧缓冲截断（固件上限）。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑列 -->
+    <div class="col-editor">
+      <div class="pools">
+        <div class="card">
+          <header><h2>前缀池</h2><span class="hint">随机取一条放在句首；空串 = 无前缀</span></header>
+          <div class="body"><div id="pool-prefixes"></div>
+            <div class="row"><button data-add="prefixes">添加前缀</button></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <header><h2>主体词池</h2><span class="hint">按意图各一组，随机取一条</span></header>
+          <div class="body"><div class="pools" id="pool-bodies"></div></div>
+        </div>
+
+        <div class="card">
+          <header><h2>跨通道补语</h2><span class="hint">命令作用于一个设备时，另一设备非停止则追加</span></header>
+          <div class="body" id="pool-cross"></div>
+        </div>
+
+        <div class="card">
+          <header><h2>状态描述</h2><span class="hint">失败文案与状态区使用</span></header>
+          <div class="body" id="pool-state"></div>
+        </div>
+
+        <div class="card">
+          <header><h2>失败文案</h2><span class="hint"><code>%s</code> 处填入实时状态描述</span></header>
+          <div class="body" id="pool-fail"></div>
+        </div>
+
+        <div class="card">
+          <header><h2>后缀池</h2><span class="hint">随机取一条放在句尾；空串 = 无后缀</span></header>
+          <div class="body"><div id="pool-suffixes"></div>
+            <div class="row"><button data-add="suffixes">添加后缀</button></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <header>
+            <h2>导出</h2>
+            <span class="hint">复制后发到对话里即可</span>
+          </header>
+          <div class="body">
+            <textarea class="export" id="exportBox" readonly></textarea>
+            <div class="row">
+              <button class="primary" id="btnCopy">复制 JSON</button>
+              <button id="btnReset">恢复为固件当前版本</button>
+              <span class="toast" id="copyMsg" hidden></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+/* ——— 固件当前词池（与 components/resp.c 一致，2026-10-02 版）——— */
+const DEFAULT_STATE = {
+  prefixes: ["", "好的，", "收到，", "没问题，"],
+  suffixes: ["", "还需要什么吗？", "随时吩咐。"],
+  bodies: {
+    led_on: ["灯已点亮", "灯切换为常亮模式", "LED 已经亮起来了"],
+    led_off: ["灯已关闭", "灯已熄灭", "LED 已关掉"],
+    led_blink: ["灯开始闪烁", "灯切换为 5Hz 闪烁模式", "LED 闪起来了"],
+    beep_breath: ["已开启呼吸提示音", "蜂鸣器开始 0.5Hz 呼吸", "呼吸提示音已打开"],
+    beep_alarm: ["已开启报警提示音", "蜂鸣器进入 2Hz 报警", "报警声已响起"],
+    beep_off: ["蜂鸣器已关闭", "蜂鸣器已停止", "提示音已停下"],
+    stop: ["已全部停止", "灯和蜂鸣器都停了", "全部设备已停下"],
+    unknown: ["抱歉，我没听懂", "这句我还没学会", "暂时理解不了这个说法"]
+  },
+  cross: {
+    beep_alarm: "（蜂鸣器仍在报警中）",
+    beep_breath: "（蜂鸣器仍在呼吸提示中）",
+    led_on: "（灯仍亮着）",
+    led_blink: "（灯仍在闪烁）"
+  },
+  state: {
+    led_off: "熄灭", led_on: "常亮", led_blink: "5Hz 闪烁",
+    beep_off: "停止", beep_breath: "呼吸提示（0.5Hz）", beep_alarm: "报警（2Hz）"
+  },
+  fail: {
+    led: "命令没送达，灯仍是「%s」状态",
+    beep: "命令没送达，蜂鸣器仍是「%s」状态",
+    stop: "命令没送达，设备状态未变（灯%s，蜂鸣器%s）",
+    other: "内部错误"
+  }
+};
+
+const INTENTS = [
+  ["led_on", "开灯"], ["led_off", "关灯"], ["led_blink", "闪烁"],
+  ["beep_breath", "呼吸"], ["beep_alarm", "报警"], ["beep_off", "关蜂鸣器"],
+  ["stop", "全停"], ["unknown", "拒识"]
+];
+const LED_MODES = [["off", "熄灭"], ["on", "常亮"], ["blink", "闪烁"]];
+const BEEP_MODES = [["off", "停止"], ["breath", "呼吸"], ["alarm", "报警"]];
+const CROSS_LABEL = {
+  beep_alarm: "蜂鸣器报警时（LED 命令的补语）",
+  beep_breath: "蜂鸣器呼吸时（LED 命令的补语）",
+  led_on: "灯常亮时（蜂鸣器命令的补语）",
+  led_blink: "灯闪烁时（蜂鸣器命令的补语）"
+};
+const STORAGE_KEY = "nlu-reply-pools-v1";
+
+let pools = load();
+const ui = { led: "on", beep: "off", intent: "led_on" };
+
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      /* 合并进默认结构，缺字段时回退 */
+      return Object.assign(clone(DEFAULT_STATE), saved);
+    }
+  } catch (e) { /* 隐私模式等场景读不到，用默认值 */ }
+  return clone(DEFAULT_STATE);
+}
+
+function save() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(pools)); } catch (e) { /* 存不下就只留在内存 */ }
+}
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+/* 与 resp.c 的 cross_clause 同规则 */
+function compose(intent) {
+  const pre = pick(pools.prefixes) || "";
+  const body = pick(pools.bodies[intent]) || "";
+  const suf = pick(pools.suffixes) || "";
+  let clause = "";
+  if (intent.indexOf("led") === 0) {
+    clause = ui.beep === "alarm" ? (pools.cross.beep_alarm || "")
+           : ui.beep === "breath" ? (pools.cross.beep_breath || "") : "";
+  } else if (intent.indexOf("beep") === 0) {
+    clause = ui.led === "on" ? (pools.cross.led_on || "")
+           : ui.led === "blink" ? (pools.cross.led_blink || "") : "";
+  }
+  return { pre: pre, body: body, clause: clause, suf: suf, text: pre + body + clause + suf };
+}
+
+/* 按 16px 中文字宽（ASCII 8px）折行，镜像 ui.c 的折行逻辑 */
+function wrap(prefix, text) {
+  const lines = [];
+  let line = prefix, w = 0;
+  for (const ch of prefix) w += ch.codePointAt(0) > 0x7e ? 16 : 8;
+  for (const ch of text) {
+    const cw = ch.codePointAt(0) > 0x7e ? 16 : 8;
+    if (w + cw > 320 - 12) { lines.push(line); line = ""; w = 0; }
+    line += ch; w += cw;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function esc(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function renderScreen() {
+  const reply = compose(ui.intent);
+  const status = "灯: " + pools.state["led_" + ui.led] + "   蜂鸣器: " + pools.state["beep_" + ui.beep];
+  document.getElementById("sStatus").textContent = status;
+
+  const inputText = document.getElementById("inSample").value || "（空）";
+  const talk = document.getElementById("sTalk");
+  const lines = [];
+  lines.push({ cls: "s-in", text: wrap("你> ", inputText) });
+  lines.push({ cls: "s-out", text: wrap("板> ", reply.text) });
+  let html = "";
+  for (const group of lines) {
+    for (const l of group.text) html += '<div class="s-line ' + group.cls + '">' + esc(l) + "</div>";
+  }
+  talk.innerHTML = html;
+
+  const bytes = new TextEncoder().encode(reply.text).length;
+  const info = document.getElementById("byteInfo");
+  info.textContent = bytes + " B / 192 B" + (bytes > 192 ? "（超限，会被截断）" : "");
+  info.style.color = bytes > 192 ? "var(--danger)" : "";
+
+  const parts = document.getElementById("parts");
+  const defs = [["前缀", reply.pre], ["主体", reply.body], ["补语", reply.clause], ["后缀", reply.suf]];
+  parts.innerHTML = defs.map(([k, v]) =>
+    '<span class="part">' + k + " <b>" + esc(v || "（空）") + "</b></span>").join("");
+
+  document.getElementById("exportBox").value = JSON.stringify(pools, null, 2);
+}
+
+/* ——— 编辑区渲染 ——— */
+function rowInput(pool, idx, value) {
+  return '<div class="row">' +
+    '<input type="text" id="in-' + pool + "-" + idx + '" data-pool="' + pool + '" data-idx="' + idx + '" value="' + esc(value) + '" placeholder="（空）">' +
+    '<button class="icon" data-del="' + pool + '" data-idx="' + idx + '" title="删除">✕</button>' +
+    "</div>";
+}
+
+function renderEditor() {
+  document.getElementById("pool-prefixes").innerHTML =
+    pools.prefixes.map((v, i) => rowInput("prefixes", i, v)).join("");
+  document.getElementById("pool-suffixes").innerHTML =
+    pools.suffixes.map((v, i) => rowInput("suffixes", i, v)).join("");
+
+  document.getElementById("pool-bodies").innerHTML = INTENTS.map(([key, label]) =>
+    '<div><div class="ctl-row"><span class="tag">' + label + " · " + key + "</span></div>" +
+    pools.bodies[key].map((v, i) => rowInput("bodies." + key, i, v)).join("") +
+    '<div class="row"><button data-add="bodies.' + key + '">添加一条</button></div></div>').join("");
+
+  document.getElementById("pool-cross").innerHTML = Object.keys(pools.cross).map(k =>
+    '<div class="ctl-row"><label style="min-width:auto">' + CROSS_LABEL[k] + "</label></div>" +
+    '<div class="row"><input type="text" id="in-cross-' + k + '" data-cross="' + k + '" value="' + esc(pools.cross[k]) + '"></div>').join("");
+
+  document.getElementById("pool-state").innerHTML = Object.keys(pools.state).map(k =>
+    '<div class="row"><span class="tag" style="min-width:74px">' + k + "</span>" +
+    '<input type="text" id="in-state-' + k + '" data-state="' + k + '" value="' + esc(pools.state[k]) + '"></div>').join("");
+
+  document.getElementById("pool-fail").innerHTML = Object.keys(pools.fail).map(k =>
+    '<div class="row"><span class="tag" style="min-width:74px">' + k + "</span>" +
+    '<input type="text" id="in-fail-' + k + '" data-fail="' + k + '" value="' + esc(pools.fail[k]) + '"></div>').join("");
+}
+
+/* ——— 分段按钮与意图下拉 ——— */
+function renderSegs() {
+  document.getElementById("segLed").innerHTML = LED_MODES.map(([v, l]) =>
+    '<button data-led="' + v + '" aria-pressed="' + (ui.led === v) + '">' + l + "</button>").join("");
+  document.getElementById("segBeep").innerHTML = BEEP_MODES.map(([v, l]) =>
+    '<button data-beep="' + v + '" aria-pressed="' + (ui.beep === v) + '">' + l + "</button>").join("");
+  document.getElementById("selIntent").innerHTML = INTENTS.map(([k, l]) =>
+    '<option value="' + k + '"' + (ui.intent === k ? " selected" : "") + ">" + l + "（" + k + "）</option>").join("");
+}
+
+/* ——— 事件 ——— */
+document.addEventListener("input", (e) => {
+  const el = e.target;
+  if (el.dataset.pool) { setPool(el.dataset.pool, +el.dataset.idx, el.value); }
+  else if (el.dataset.cross) { pools.cross[el.dataset.cross] = el.value; }
+  else if (el.dataset.state) { pools.state[el.dataset.state] = el.value; }
+  else if (el.dataset.fail) { pools.fail[el.dataset.fail] = el.value; }
+  else { return; }
+  save(); renderScreen();
+});
+document.getElementById("inSample").addEventListener("input", renderScreen);
+
+function setPool(path, idx, value) {
+  if (path.indexOf("bodies.") === 0) { pools.bodies[path.slice(7)][idx] = value; }
+  else { pools[path][idx] = value; }
+}
+function getPool(path) {
+  return path.indexOf("bodies.") === 0 ? pools.bodies[path.slice(7)] : pools[path];
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("button");
+  if (!t) return;
+  if (t.dataset.add) { getPool(t.dataset.add).push(""); save(); renderEditor(); renderScreen(); }
+  else if (t.dataset.del) {
+    const arr = getPool(t.dataset.del);
+    if (arr.length <= 1) return;                       /* 至少保留一条 */
+    arr.splice(+t.dataset.idx, 1); save(); renderEditor(); renderScreen();
+  }
+  else if (t.dataset.led) { ui.led = t.dataset.led; renderSegs(); renderScreen(); }
+  else if (t.dataset.beep) { ui.beep = t.dataset.beep; renderSegs(); renderScreen(); }
+});
+
+document.getElementById("selIntent").addEventListener("change", (e) => { ui.intent = e.target.value; renderScreen(); });
+document.getElementById("btnRoll").addEventListener("click", renderScreen);
+
+document.getElementById("btnCopy").addEventListener("click", () => {
+  const box = document.getElementById("exportBox");
+  const msg = document.getElementById("copyMsg");
+  const done = () => { msg.textContent = "已复制，粘到对话里发我即可"; msg.hidden = false; setTimeout(() => { msg.hidden = true; }, 4000); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(box.value).then(done).catch(() => { box.select(); });
+  } else {
+    box.select();
+  }
+});
+
+document.getElementById("btnReset").addEventListener("click", () => {
+  pools = clone(DEFAULT_STATE); save(); renderEditor(); renderScreen();
+});
+
+/* ——— 启动 ——— */
+renderSegs();
+renderEditor();
+renderScreen();
+</script>
+</body>
+</html>
