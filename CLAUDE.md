@@ -10,8 +10,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **技术路线已定**：文本 NLU。理解层先关键词规则占位，阶段 4~6 用自训
   小模型（字符级 TextCNN → int8 量化 → TFLite Micro）替换，规则降级兜底
-- **进度**：阶段 1~3（骨架与执行层、响应层 2.0、屏幕接入）已完成并验收通过
-- 分阶段计划见 `docs/ROADMAP.md`；阶段 1 实施依据见 `docs/STAGE1_DESIGN.md`
+- **进度**：阶段 1~4（骨架与执行层、响应层 2.0、屏幕接入、数据工程）已完成并验收通过；下一步阶段 5（模型训练与量化）
+- 分阶段计划见 `docs/ROADMAP.md`；各阶段实施依据与验收记录见 `docs/STAGE*_DESIGN.md`
 
 ## 架构与硬件约定
 
@@ -27,6 +27,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   KEY2 回最新 / KEY3 上滚）经 `ui_q` 投屏幕命令，不再直调工具层
 - 回复词池（前缀/主体/补语/后缀/状态描述）在 `resp.c`，用 `tools/reply_pools.html`
   编辑预览后导出 JSON；状态描述与屏幕状态区文案同源，改动需同步 `resp.c` 与 `ui.c`
+- 规则词池有两份副本：`nlu.c` 与 `tools/rule_baseline.py`，改一处须同步另一处；
+  词池精化以 `tools/intents.json` 的语料说法为准（取舍原则与验收见 `docs/STAGE4_DESIGN.md`）
 - `components/` 为「目录即组件」：源文件平铺、不再分二级目录；改行为前先读
   `docs/` 对应阶段的细化设计
 

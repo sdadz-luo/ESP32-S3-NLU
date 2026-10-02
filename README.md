@@ -2,7 +2,7 @@
 
 基于正点原子 DNESP32S3 开发板的学习型工程：在 ESP32-S3 上跑 NLU（自然语言理解）模型——串口 / WiFi 输入自然语言，板载意图识别后调用片上工具（LED / 蜂鸣器，后续加 LCD）。技术路线：理解层先关键词规则占位，阶段 4~6 用自训 int8 小模型（TFLite Micro）替换。
 
-当前进度：阶段 1~3（骨架与执行层、响应层 2.0、屏幕接入）已完成并验收通过。
+当前进度：阶段 1~4（骨架与执行层、响应层 2.0、屏幕接入、数据工程）已完成并验收通过；下一步阶段 5（模型训练与量化）。
 
 ## 硬件平台
 
@@ -58,14 +58,18 @@ python -m esptool --chip esp32s3 -p COM5 write_flash 0xC00000 data/font16.bin
 
 回复词池（前缀 / 主体 / 跨通道补语 / 后缀 / 状态描述）可用 `tools/reply_pools.html` 在浏览器里编辑：右侧按固件同款组合逻辑在模拟设备屏上实时预览，改完导出 JSON 即可更新固件文案。
 
+## 语料与规则基线（阶段 4）
+
+训练语料由 `tools/gen_corpus.py` 从语料源 `tools/intents.json`（8 类意图，模板 × 槽位）确定性生成到 `data/corpus/`（不入库）；规则兜底基线与逐类误判明细由 `tools/rule_baseline.py` 输出。讲解材料见 `docs/stage4-nlu-guide.html`，设计与验收记录见 `docs/STAGE4_DESIGN.md`。
+
 ## 目录结构
 
 ```text
 .
 ├── main/                  # 应用入口（app_main）
 ├── components/            # 四层应用代码（目录即组件，源文件平铺）
-├── tools/                 # 工具：字库生成（gen_font.py）、回复词池编辑（reply_pools.html）
-├── data/                  # 字库产物与字体源（不入库，见 data/README.md）
+├── tools/                 # 工具：字库生成 / 回复词池编辑 / 语料生成 / 规则基线
+├── data/                  # 字库与语料产物（不入库，见 data/README.md）
 ├── docs/                  # 路线图与各阶段细化设计
 ├── partitions-16MiB.csv   # 自定义分区表
 ├── sdkconfig.defaults     # 固化的关键配置（Flash / PSRAM / 分区表）

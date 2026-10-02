@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>从一句话到端侧模型 · NLU 语料与训练指南</title>
+<style>
+:root{
+  --bg:#F6F7F4;
+  --surface:#FFFFFF;
+  --code-bg:#EDF1EF;
+  --fg:#1E2A2C;
+  --muted:#4E6066;
+  --faint:#55686C;
+  --accent:#0E7490;
+  --accent-soft:#DCEBF0;
+  --accent2:#8A6100;
+  --accent2-soft:#F3EAD2;
+  --line:#D8DFDC;
+  --line-strong:#B7C3BE;
+  --font-body:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Noto Sans SC",system-ui,sans-serif;
+  --font-mono:"Cascadia Mono","Cascadia Code",Consolas,"Courier New",monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#132326;
+  --surface:#1A2E31;
+  --code-bg:#0F1D1F;
+  --fg:#E4EDEA;
+  --muted:#B0C0BD;
+  --faint:#93A7A4;
+  --accent:#5FC9E2;
+  --accent-soft:#14343D;
+  --accent2:#E2B457;
+  --accent2-soft:#33290F;
+  --line:#2A3E41;
+  --line-strong:#42605F;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#132326;
+  --surface:#1A2E31;
+  --code-bg:#0F1D1F;
+  --fg:#E4EDEA;
+  --muted:#B0C0BD;
+  --faint:#93A7A4;
+  --accent:#5FC9E2;
+  --accent-soft:#14343D;
+  --accent2:#E2B457;
+  --accent2-soft:#33290F;
+  --line:#2A3E41;
+  --line-strong:#42605F;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.001s !important;transition-duration:.001s !important}
+}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--fg);
+  font-family:var(--font-body);
+  font-size:16px;
+  line-height:1.8;
+}
+code,kbd,samp{font-family:var(--font-mono);font-size:.88em;background:var(--code-bg);padding:.1em .35em;border-radius:3px}
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:6px;padding:14px 16px;overflow-x:auto;line-height:1.65;font-size:.86rem}
+pre code{background:none;padding:0;font-size:1em}
+a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3{line-height:1.35;font-weight:700;text-wrap:balance}
+h2{font-size:1.6rem;margin:0 0 .4em}
+h3{font-size:1.16rem;margin:2.2em 0 .3em}
+p{margin:.7em 0}
+strong{font-weight:600}
+hr{border:0;border-top:1px solid var(--line);margin:2.4em 0}
+
+/* ---------- header / hero ---------- */
+.hero{
+  border-bottom:1px solid var(--line);
+  padding:56px 0 40px;
+  background:
+    linear-gradient(to bottom, var(--accent-soft), transparent 82%);
+}
+.hero .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+.kicker{font-size:.82rem;color:var(--muted);margin:0 0 10px;letter-spacing:.02em}
+h1{font-size:clamp(1.75rem,4.4vw,2.5rem);margin:0 0 12px}
+.lede{font-size:1.05rem;color:var(--muted);max-width:62ch;margin:0 0 30px}
+.demo{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:16px 18px;max-width:880px;
+}
+.demo .stage{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.demo .stage-label{font-size:.78rem;color:var(--faint);width:100%;margin-bottom:2px}
+.arr{color:var(--faint);font-size:1rem;user-select:none}
+.tok{
+  display:inline-grid;place-items:center;min-width:1.9em;
+  padding:.14em .38em;border:1px solid var(--line-strong);border-radius:4px;
+  background:var(--surface);font-family:var(--font-mono);font-size:.85rem;
+}
+.tok.num{color:var(--accent);border-color:var(--accent)}
+.probs{display:flex;flex-direction:column;gap:5px;min-width:min(340px,100%)}
+.pl{display:grid;grid-template-columns:84px 1fr 46px;align-items:center;gap:8px;font-size:.78rem;color:var(--muted)}
+.pl .bar-wrap{background:var(--code-bg);border-radius:3px;overflow:hidden;height:12px}
+.pl .bar{display:block;height:100%;background:var(--line-strong);transform-origin:left;border-radius:3px}
+.pl.top .bar{background:var(--accent)}
+.pl.top{color:var(--fg);font-weight:600}
+.pl .pct{text-align:right;font-family:var(--font-mono);font-size:.78rem}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes blink-in{from{opacity:0}to{opacity:1}}
+.demo .tok{animation:blink-in .4s both}
+.demo .tok:nth-of-type(1){animation-delay:.05s}
+.demo .tok:nth-of-type(2){animation-delay:.25s}
+.demo .tok.num{animation-delay:.8s}
+.demo .probs .pl{animation:blink-in .45s both;animation-delay:1.25s}
+.demo .pl .bar{animation:grow .7s cubic-bezier(.2,.7,.3,1) both;animation-delay:1.35s}
+
+/* ---------- layout ---------- */
+.layout{
+  max-width:1180px;margin:0 auto;padding:0 24px;
+  display:grid;grid-template-columns:230px minmax(0,1fr);gap:56px;
+  align-items:start;
+}
+nav.toc{position:sticky;top:24px;padding:34px 0 60px;font-size:.88rem}
+nav.toc .toc-title{font-size:.78rem;color:var(--faint);margin:0 0 10px}
+nav.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+nav.toc a{display:block;padding:4px 10px;border-left:2px solid var(--line);color:var(--muted);text-decoration:none;border-radius:0 4px 4px 0}
+nav.toc a:hover{color:var(--fg)}
+nav.toc a.active{color:var(--accent);border-left-color:var(--accent);background:var(--accent-soft)}
+main{padding:34px 0 80px;min-width:0;max-width:790px}
+section + section{border-top:1px solid var(--line);margin-top:56px;padding-top:44px}
+section{scroll-margin-top:20px}
+.chapter-note{color:var(--muted);font-size:.95rem}
+
+/* ---------- content widgets ---------- */
+.note,.warn{
+  border-left:3px solid var(--accent);background:var(--accent-soft);
+  padding:12px 16px;border-radius:0 6px 6px 0;margin:1.1em 0;font-size:.94rem;
+}
+.warn{border-left-color:var(--accent2);background:var(--accent2-soft)}
+.note p,.warn p{margin:.3em 0}
+.note .t,.warn .t{font-weight:700}
+.tablewrap{overflow-x:auto;margin:1.1em 0}
+table{border-collapse:collapse;width:100%;font-size:.9rem;line-height:1.6}
+th,td{border-bottom:1px solid var(--line);padding:.5em .7em;text-align:left;vertical-align:top}
+th{font-weight:600;color:var(--muted);white-space:nowrap}
+td code,th code{white-space:nowrap}
+details{
+  border:1px solid var(--line);border-radius:6px;padding:10px 14px;margin:1.1em 0;
+  background:var(--surface);font-size:.94rem;
+}
+details summary{cursor:pointer;font-weight:600}
+details[open] summary{margin-bottom:.5em}
+details > :last-child{margin-bottom:.2em}
+.seq{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:.9em 0;font-size:.9rem}
+.seq .lbl{color:var(--faint);font-size:.8rem;margin-right:2px}
+.pipe{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px}
+.pnode{
+  border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);
+  padding:10px 12px;min-width:128px;flex:1 1 128px;display:flex;flex-direction:column;gap:2px;
+}
+.pnode code{background:none;padding:0;font-size:.84rem;color:var(--accent);border:0}
+.pnode .sub{font-size:.78rem;color:var(--faint);line-height:1.55}
+.pipe .arr{align-self:center;flex:0 0 auto}
+.tok.pad{color:var(--faint);border-style:dashed;background:transparent}
+.kbdline{font-family:var(--font-mono);font-size:.85rem;color:var(--muted)}
+ul,ol{padding-left:1.5em;margin:.7em 0}
+li{margin:.28em 0}
+li > ul,li > ol{margin:.2em 0}
+figure{margin:1.4em 0;overflow-x:auto}
+figure svg{display:block;width:100%;height:auto;min-width:560px}
+figcaption{font-size:.82rem;color:var(--faint);margin-top:.5em}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin:1.1em 0}
+.grid2 > div{border:1px solid var(--line);border-radius:6px;padding:12px 16px;background:var(--surface);font-size:.92rem}
+.grid2 > div .gt{font-weight:700;margin:0 0 .3em}
+footer{border-top:1px solid var(--line);padding:26px 0 60px;color:var(--faint);font-size:.9rem}
+footer .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+.theme-btn{
+  position:fixed;top:14px;right:14px;z-index:10;
+  background:var(--surface);color:var(--muted);border:1px solid var(--line-strong);
+  border-radius:6px;padding:5px 10px;font-size:.78rem;font-family:var(--font-body);cursor:pointer;
+}
+.theme-btn:hover{color:var(--fg)}
+
+@media (max-width:900px){
+  .layout{display:block;padding:0 16px}
+  nav.toc{
+    position:sticky;top:0;z-index:5;background:var(--bg);
+    padding:8px 0;margin:0 -16px;padding-left:16px;padding-right:16px;
+    border-bottom:1px solid var(--line);
+    overflow-x:auto;white-space:nowrap;
+  }
+  nav.toc .toc-title{display:none}
+  nav.toc ol{flex-direction:row;gap:4px}
+  nav.toc a{border-left:0;border-bottom:2px solid transparent;border-radius:4px 4px 0 0;padding:4px 8px}
+  nav.toc a.active{border-left:0;border-bottom-color:var(--accent)}
+  main{padding-top:24px}
+  .hero{padding:40px 0 28px}
+  .hero .wrap{padding:0 16px}
+}
+@media print{
+  :root{--bg:#fff;--fg:#000;--surface:#fff;--code-bg:#f4f4f4;--line:#bbb;--muted:#333;--faint:#444;--accent:#065A70;--accent-soft:#eef;--accent2:#6b4c00;--accent2-soft:#fff8e0}
+  nav.toc,.theme-btn{display:none}
+  .layout{display:block;max-width:none}
+  main{max-width:none;padding:0}
+  details{border-color:#999}
+  details > *{display:block !important}
+  section{page-break-inside:auto}
+  h2,h3{page-break-after:avoid}
+  pre,figure,.tablewrap{page-break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<button class="theme-btn" id="themeBtn" type="button" aria-label="切换主题">主题：自动</button>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="kicker">ESP32-S3 文本 NLU · 阶段 4–5 指南 · 2026-10-02</p>
+    <h1>从一句话到端侧模型</h1>
+    <p class="lede">「准备语料」与「训练模型」的完整讲解：每个设计决策背后的原理、这条流水线的每一步在做什么、以及怎么判断它做对了。项目现状：阶段 1–3 已验收，阶段 4 实施中。</p>
+
+    <div class="demo" aria-label="NLU 三步演示：文字变编号，再变类别概率">
+      <div class="stage">
+        <span class="stage-label">你输入的文字</span>
+        <span class="tok">开</span><span class="tok">灯</span>
+      </div>
+      <span class="arr" aria-hidden="true">→</span>
+      <div class="stage">
+        <span class="stage-label">词表编号（示意）</span>
+        <span class="tok num">12</span><span class="tok num">87</span>
+      </div>
+      <span class="arr" aria-hidden="true">→</span>
+      <div class="stage" style="flex:1">
+        <span class="stage-label">模型输出：8 个意图的概率</span>
+        <div class="probs">
+          <div class="pl top"><span>led_on</span><span class="bar-wrap"><span class="bar" style="width:96%"></span></span><span class="pct">96%</span></div>
+          <div class="pl"><span>led_off</span><span class="bar-wrap"><span class="bar" style="width:2%"></span></span><span class="pct">2%</span></div>
+          <div class="pl"><span>unknown</span><span class="bar-wrap"><span class="bar" style="width:1%"></span></span><span class="pct">1%</span></div>
+          <div class="pl"><span>其余 5 类</span><span class="bar-wrap"><span class="bar" style="width:0.6%"></span></span><span class="pct">≤1%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="本页目录">
+    <p class="toc-title">目录</p>
+    <ol>
+      <li><a href="#overview">全景地图</a></li>
+      <li><a href="#decisions">六个关键决策</a></li>
+      <li><a href="#stage4">阶段 4：语料实操</a></li>
+      <li><a href="#train">阶段 5：模型训练</a></li>
+      <li><a href="#quant">阶段 5 后半：int8 量化</a></li>
+      <li><a href="#stage6">阶段 6：板端衔接</a></li>
+      <li><a href="#checklist">检查清单与下一步</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <section id="overview">
+      <h2>全景地图</h2>
+      <p>这份指南讲一条完整流水线：把「你会对板子说的话」变成一份可训练的数据集（阶段 4），再把数据集变成一个能在 ESP32-S3 上跑的小模型（阶段 5）。每一环的产物就是下一环的输入：</p>
+
+      <figure>
+        <div class="pipe">
+          <div class="pnode"><code>intents.json</code><span class="sub">语料源：意图表、模板、槽位（人工维护）</span></div>
+          <span class="arr" aria-hidden="true">→</span>
+          <div class="pnode"><code>gen_corpus.py</code><span class="sub">组合展开 → 采样 → 划分 → 自检</span></div>
+          <span class="arr" aria-hidden="true">→</span>
+          <div class="pnode"><code>tsv + vocab.txt</code><span class="sub">train / val / test 文本集 + 字符编号表</span></div>
+          <span class="arr" aria-hidden="true">→</span>
+          <div class="pnode"><code>train_textcnn.py</code><span class="sub">编码 → TextCNN 训练 → 评估</span></div>
+          <span class="arr" aria-hidden="true">→</span>
+          <div class="pnode"><code>model_int8.tflite</code><span class="sub">int8 量化模型（&lt;100 KB）</span></div>
+          <span class="arr" aria-hidden="true">→</span>
+          <div class="pnode"><code>固件</code><span class="sub">C 数组进 flash → 板端推理（阶段 6）</span></div>
+        </div>
+        <figcaption>从语料源到板端的完整链路：阶段 4 管前三环，阶段 5 管中间两环，阶段 6 接最后一环。</figcaption>
+      </figure>
+
+      <h3>三个阶段，三件事</h3>
+      <div class="tablewrap">
+        <table>
+          <tr><th>阶段</th><th>一句话任务</th><th>核心产物</th><th>「做完了」的标尺</th></tr>
+          <tr><td>4 数据工程</td><td>造出训练要用的数据</td><td>train / val / test.tsv、vocab.txt、统计报告</td><td>各意图条数均衡 + 词表覆盖检查通过</td></tr>
+          <tr><td>5 训练与量化</td><td>把数据变成小模型</td><td>int8 模型 + 精度评估报告</td><td>测试集准确率 ≥95%，量化前后精度对比</td></tr>
+          <tr><td>6 端侧集成</td><td>把模型放进固件跑起来</td><td>板端推理 + 规则兜底双层结构</td><td>手敲 20 句现编口语，通过率 ≥ 2/3</td></tr>
+        </table>
+      </div>
+
+      <h3>为什么没有现成数据集可用</h3>
+      <p>公开的中文意图识别数据集解决不了这个项目的问题，原因有三：</p>
+      <ol>
+        <li><strong>域太窄</strong>：只有 8 个意图，全围绕「灯 / 蜂鸣器」两块硬件。公开数据集的意图（订票、查天气……）一个都用不上；而这个窄域的口语表达，没有人替你整理过。</li>
+        <li><strong>输入形态特殊</strong>：串口 / 网页输入的是一句「命令」，夹杂「帮我」「麻烦」这类礼貌语和口语省略，与通用语料里书面句子的分布差很远。</li>
+        <li><strong>模型太小</strong>：目标是 &lt;100 KB 的端侧模型，没有能力「泛化理解」——只能用贴合真实使用的样本，教它认识这个窄域里的固定模式。</li>
+      </ol>
+      <p>所以数据必须自己造。而「怎么造」决定了模型能学到什么、也决定了测试成绩可不可信——这就是下一章的六个关键决策。</p>
+
+      <h3>train / val / test 各自做什么</h3>
+      <p>数据集会切成三份，用途严格区分。这条纪律不守，评估结果就会骗你：</p>
+      <div class="tablewrap">
+        <table>
+          <tr><th>集合</th><th>比例</th><th>用途</th><th>纪律</th></tr>
+          <tr><td>训练集 train</td><td>80%</td><td>模型学习参数</td><td>反复使用</td></tr>
+          <tr><td>验证集 val</td><td>10%</td><td>调超参、监控过拟合、决定何时停</td><td>训练期间可反复看</td></tr>
+          <tr><td>测试集 test</td><td>10%</td><td>最终成绩单</td><td>训练中绝不碰，只考一次</td></tr>
+        </table>
+      </div>
+      <div class="warn">
+        <p><span class="t">为什么 test 只能考一次：</span>每调一次参数就用 test 测一次，等于拿 test 当 val 用——测到满意为止，就是对考题改答案，成绩不再反映真实水平。调参看 val，宣布最终成绩时才动 test。</p>
+      </div>
+    </section>
+
+    <section id="decisions">
+      <h2>六个关键决策</h2>
+      <p class="chapter-note">这一章回答「为什么这么做」。六个决策合起来，就是这套语料方案的全部方法论——后面的实操只是它们的执行。</p>
+
+      <h3>决策一：字符级，而不是分词</h3>
+      <p>中文 NLP 的第一道选择题是：把句子切成什么单位喂给模型？</p>
+      <ul>
+        <li><strong>分词级</strong>：先用分词器切成词——「帮我 / 开 / 灯」，每个词一个 token。</li>
+        <li><strong>字符级</strong>：每个汉字或字母就是一个 token——「帮 / 我 / 开 / 灯」。</li>
+      </ul>
+      <div class="tablewrap">
+        <table>
+          <tr><th>维度</th><th>分词级</th><th>字符级（本项目）</th></tr>
+          <tr><td>词表大小</td><td>数千～数万词</td><td>几百个字符（预计 &lt;500）</td></tr>
+          <tr><td>分词器</td><td>需要词典 + 分词算法</td><td>不需要：逐字符查表</td></tr>
+          <tr><td>未登录（OOV）风险</td><td>口语变体常未收录，如「开下灯」</td><td>只剩生僻字一种情况</td></tr>
+          <tr><td>C 侧实现量</td><td>高（要把分词器带上板）</td><td>低（UTF-8 解码 + 查表，约 20 行）</td></tr>
+          <tr><td>序列长度</td><td>短（一句约 8 个词）</td><td>长（一句约 15 个字）</td></tr>
+          <tr><td>单 token 信息量</td><td>高（一个词一个义）</td><td>低，靠「多个字一起看」的卷积窗口补回</td></tr>
+        </table>
+      </div>
+      <p>选字符级的根本原因是<strong>端侧约束</strong>：分词器要配词典、算法和几百 KB 级资源，而应用分区只有 1.9 MB；口语变体又最容易踩未登录词的坑。字符级的代价是序列变长、单个字符信息量小——这正好由 TextCNN 的多尺度卷积窗口（k=2/3/4）来补：「开」「灯」两个字符相邻出现，k=2 的窗口就能把「开灯」这个模式抓出来。</p>
+
+      <h3>决策二：模板 × 槽位——受控的数据增强</h3>
+      <p>造语料有三条路：收集真实语料（这个域没有现成来源）、人工一句句写（覆盖不全、难统计）、程序化生成。本项目选第三条——<strong>句式模板 × 同义词槽位</strong>：</p>
+      <div class="seq" style="align-items:flex-start">
+        <span class="lbl">模板</span>
+        <code>{polite}{act_on}个{dev_light}</code>
+        <span class="arr" aria-hidden="true">→</span>
+        <span class="lbl">展开（5 × 4 × 4 = 80 句）</span>
+      </div>
+      <div class="seq">
+        <span class="tok">帮我开个灯</span><span class="tok">请点个台灯</span><span class="tok">麻烦打开个小灯</span><span class="tok">给我开个LED</span><span class="tok">帮忙开启个台灯</span><span class="tok">麻烦点个小灯</span><span class="lbl">…</span>
+      </div>
+      <p>这在方法论上就是<strong>数据增强</strong>（同一语义的多种说法变体），只是「受控」的：每个变体可追溯来源模板、可统计、固定种子可复现，不会有真实语料里的脏数据问题。它的局限也要认清——句式多样性上限 = 写模板时能想到的说法，所以阶段 8 要用真实输入持续迭代补充。</p>
+
+      <h3>决策三：先划模板，再落句子（防泄漏）</h3>
+      <p>切分 train / val / test 时，不能简单地把生成的句子随机分堆。看一个例子：</p>
+      <div class="grid2">
+        <div>
+          <p class="gt">随机划分（错的）</p>
+          <p class="kbdline">train：帮我开灯、帮我开台灯、请开灯 …<br>test：<strong>帮我开LED</strong></p>
+          <p>test 这句和 train 只差一个槽位词，模型背下「帮我开X」模式后几乎必然答对——考的是记忆，不是泛化，准确率虚高。</p>
+        </div>
+        <div>
+          <p class="gt">模板级划分（对的）</p>
+          <p class="kbdline">train：模板「帮我开X」的全部 80 句<br>test：<strong>「把X打开」等其他模板家族</strong></p>
+          <p>整个模板家族的句子只进一个集合，test 里的句式训练时从未见过——考的是「换个说法还认不认得」，正是阶段 6「手敲现编口语」的场景。</p>
+        </div>
+      </div>
+      <p>做法：先给每个类别的模板按 8:1:1 分堆（比如 50 个模板 → 40/5/5），再让该模板生成的所有句子跟随它所属的集合。这样 test 成绩才有资格代表「真实口语表现」。</p>
+
+      <h3>决策四：unknown 不是「剩下的」，是一类</h3>
+      <p>softmax 层有个数学事实：8 个输出概率之和恒为 1，取最大值<em>永远</em>有结果。也就是说，无论输入什么——哪怕「今天天气不错」——模型都<strong>必须</strong>给出一个意图。拒识不能指望模型「自己知道不知道」，要靠设计：</p>
+      <ul>
+        <li>方案 A：只训 7 个动作类，部署时靠「置信度过低 → 拒识」判断。简单，但模型从没见过「无关输入」长什么样，容易把无关句高置信度地误判成某个动作。</li>
+        <li>方案 B（本项目）：把 <code>unknown</code> 当作正式的第 8 类训练——让模型直接从样本里学会「这不是一条命令」。</li>
+      </ul>
+      <p>unknown 语料分三种成分，各有明确分工：</p>
+      <div class="tablewrap">
+        <table>
+          <tr><th>成分</th><th>占比</th><th>例子</th><th>作用</th></tr>
+          <tr><td>完全无关</td><td>≈40%</td><td>今天天气不错 / 你叫什么名字</td><td>教「闲聊不是命令」</td></tr>
+          <tr><td>域内无关（难例）</td><td>≈35%</td><td>把空调打开 / 把灯调成红色 / 灯会不会闪吗</td><td>含设备词但无动作——与动作类字符重叠最大，最难分，必须占足比重</td></tr>
+          <tr><td>噪声</td><td>≈25%</td><td>单字、重复、乱敲、超长拼接</td><td>覆盖真实场景里的乱输入</td></tr>
+        </table>
+      </div>
+      <p>部署后（阶段 6）还会加第二道闸门：模型置信度低于阈值时，先让关键词规则兜底再试一次，都不中才回「没听懂」。所以拒识是<strong>两道闸门</strong>：训练出的 unknown 类 + 部署时的阈值判断。</p>
+
+      <h3>决策五：词表——把字变成编号</h3>
+      <p>模型不认识汉字，只认识数字。词表（vocab）就是「字符 ↔ 编号」的对照表：语料里出现过的每个不同字符占一行，行号就是它的 id。</p>
+      <div class="seq">
+        <span class="lbl">vocab.txt 前几行（格式示意）</span>
+      </div>
+      <pre><code>&lt;pad&gt;     ← id 0：补位符，把短句垫到统一长度用
+&lt;unk&gt;     ← id 1：未登录字符的占位符
+开        ← id 2
+灯        ← id 3
+…（按频次降序，同频按 Unicode 码点升序）</code></pre>
+      <ul>
+        <li><strong>&lt;pad&gt;</strong>：一句话只有 5 个字、模型要求输入 20 个 token，多出的 15 个位置用 pad 填充——它们不参与信息表达（靠池化层自然屏蔽）。</li>
+        <li><strong>&lt;unk&gt;</strong>：推理时遇到词表外的字符（生僻字、Emoji）时的占位。训练语料按定义全在词表内，unk 只在部署期起作用。</li>
+        <li><strong>为什么上限 500</strong>：命令句的用字高度集中（预计全语料 400 个左右不同字符）。词表大小直接决定第一层 Embedding 的参数——500 × 32 维 ≈ 1.6 万参数，受控；若混入英文长句、生僻话题，几百字就膨胀起来了，所以 unknown 语料也控制用字。</li>
+      </ul>
+
+      <h3>决策六：规模与均衡——每类 500 条的来历</h3>
+      <ul>
+        <li><strong>量级匹配</strong>：模型总参数约 3.6 万（估算，第 3 章细算），语料约 4000 条——小模型不需要海量数据，需要的是「覆盖够多句式、且句式别重复」。</li>
+        <li><strong>类别均衡</strong>：生成器按配额精确采样，每个动作类都是 500 条。类别不均衡会让模型偏向样本多的类，小模型上尤其明显。</li>
+        <li><strong>unknown 例外</strong>：600 条（+20%），因为拒识是端侧 NLU 最主要的失败点，多给样本合理。</li>
+        <li><strong>质量 &gt; 数量</strong>：模板生成的是「受控重复」，堆到上万条边际收益趋零。真正让模型变强的，是<strong>模板数</strong>（句式多样性），不是同一模板的更多变体。</li>
+      </ul>
+    </section>
+
+    <section id="stage4">
+      <h2>阶段 4：语料实操</h2>
+      <p class="chapter-note">决策讲完了，这一章把「怎么造」落到本项目的真实文件上：语料源长什么样、生成器做哪四步、产物怎么看。</p>
+
+      <h3>语料源：一个 JSON 管全部</h3>
+      <p>整份语料来自 <code>tools/intents.json</code>，就是三个部分：</p>
+      <pre><code>{
+  "slots": {          ← 槽位：一个名字 → 一组合法替换词
+    "dev_light": ["灯", "LED", "台灯", "小灯"],
+    "polite":    ["帮我", "请", "麻烦", "给我", "帮忙"],
+    …
+  },
+  "intents": {        ← 每个意图一串模板；{槽位名} 会被展开
+    "led_on": [
+      "{polite}{act_on}{dev_light}",
+      "把{dev_light}{act_on2}",
+      "把灯点上",     ← 不含花括号＝固定句，原样收录
+      …
+    ],
+    …
+  },
+  "noise": { "ratio": 0.25 }   ← unknown 噪声占比（脚本按规则生成）
+}</code></pre>
+      <ul>
+        <li><strong>槽位</strong>是「同义词池」：改一处（如给 <code>dev_light</code> 加「吊灯」），所有引用它的模板一起扩充。</li>
+        <li><strong>固定句</strong>（不含 <code>{}</code> 的元素）负责模板组合写不出的口语表达，如「把灯给我打开」「来点光」。</li>
+        <li>整个文件共 8 个意图、约 400 条模板元素——这就是人工创作的全部工作量，之后机器负责放大。</li>
+      </ul>
+
+      <h3>生成器做四步</h3>
+      <ol>
+        <li><strong>展开</strong>：把每个模板的 <code>{槽位}</code> 替换成全部组合并去重。例：<code>{act_on}{dev_light}</code> → 4 × 4 = 16 句（开灯 / 打开灯 / 点LED …）。</li>
+        <li><strong>采样（按模板均分）</strong>：目标 500 条 ÷ 模板数，每个模板分摊固定配额，各自随机取——这样写了 200 种组合的模板也不会霸榜（它也只取自己的 10 条），句式的多样性由「模板」这个单位保证。</li>
+        <li><strong>划分</strong>：先给模板按 8:1:1 分堆，模板生成的句子跟随所在堆进入 train / val / test。</li>
+        <li><strong>自检</strong>：模板泄漏（同模板跨集合即报错）、单句长度、字符集规模、每类模板数下限，任一不过就报错退出。</li>
+      </ol>
+      <div class="note">
+        <p><span class="t">固定种子（seed = 42）：</span>采样和划分的随机数都从固定种子出发——同一份语料源任何时候重跑，产物逐字节一致。这是「源入库、产物不入库」方案成立的前提：产物永远可以从源一条命令复现。</p>
+      </div>
+
+      <h3>产物的三件套</h3>
+      <div class="tablewrap">
+        <table>
+          <tr><th>文件</th><th>内容</th><th>谁消费</th></tr>
+          <tr><td><code>train / val / test.tsv</code></td><td>文本 + 标签，制表符分隔</td><td>阶段 5 训练脚本</td></tr>
+          <tr><td><code>vocab.txt</code></td><td>字符 ↔ 编号对照表</td><td>训练脚本 + 阶段 6 C 侧 tokenizer</td></tr>
+          <tr><td><code>report.md</code></td><td>统计报告：条数 / 长度 / 字符集 / 自检结果</td><td>人看——验收依据</td></tr>
+        </table>
+      </div>
+      <pre><code># train.tsv 的样子（\t 为制表符）
+开灯	led_on
+把蜂鸣器调成呼吸声	beep_breath
+把空调打开	unknown
+别亮着了	led_off
+…
+</code></pre>
+
+      <h3>怎么判断「语料合格」</h3>
+      <p>对照阶段 4 验收清单，逐项过：</p>
+      <ul>
+        <li><strong>可复现</strong>：同种子跑两遍，TSV 逐字节一致。</li>
+        <li><strong>条数均衡</strong>：报告里 8 个类条数齐平（动作类各 500 左右，unknown 600）。</li>
+        <li><strong>词表受控</strong>：全语料字符集 ≤ 500；阶段 1 的验收句（「开灯」「闪」「报警」「停止」…）全部落在词表内。</li>
+        <li><strong>无泄漏</strong>：模板级划分自检通过。</li>
+        <li><strong>人工抽查</strong>：从 test.tsv 随机抽几十句通读——检查有没有病句、标注错位；再从抽出的句子挑 30 句打进板子，看关键词规则在真实链路上的表现（这一步同时为「规则兜底基线」采样）。</li>
+      </ul>
+    </section>
+
+    <section id="train">
+      <h2>阶段 5：模型训练</h2>
+      <p class="chapter-note">这一步把 4000 条文本变成约 3.6 万个浮点数——模型。先看清数据长什么样，再解剖网络，最后讲训练与评估。</p>
+
+      <h3>第一步：文字 → 数字序列</h3>
+      <p>每条语料先经过<strong>和部署时完全相同的预处理</strong>——训练用什么编码，上板就用什么编码，两边不一致是端侧部署最常见的坑：</p>
+      <div class="seq">
+        <span class="lbl">原文</span><span class="tok">把</span><span class="tok">灯</span><span class="tok">打</span><span class="tok">开</span>
+      </div>
+      <div class="seq">
+        <span class="lbl">逐字符查 vocab.txt</span><span class="tok num">45</span><span class="tok num">87</span><span class="tok num">121</span><span class="tok num">12</span>
+      </div>
+      <div class="seq">
+        <span class="lbl">padding 到统一长度（max_len＝8，示意）</span>
+        <span class="tok num">45</span><span class="tok num">87</span><span class="tok num">121</span><span class="tok num">12</span>
+        <span class="tok pad">0</span><span class="tok pad">0</span><span class="tok pad">0</span><span class="tok pad">0</span>
+      </div>
+      <p>上面编号均为示意，实际编号以生成的 <code>vocab.txt</code> 为准。<code>max_len</code> 取语料长度的 P99.9（报告里给出，预期 ≤20），所有句子垫到等长才能组成批次的张量。这一步的产物是形状 <code>(样本数, max_len)</code> 的整数矩阵。</p>
+
+      <h3>网络解剖：字符级 TextCNN</h3>
+      <figure>
+        <svg viewBox="0 0 740 316" role="img" aria-label="TextCNN 结构示意图：字符序列经 Embedding 后分三路卷积，池化拼接后经全连接输出 8 类概率" style="width:100%;height:auto">
+          <defs>
+            <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill:var(--faint)"/>
+            </marker>
+          </defs>
+          <!-- 输入序列 -->
+          <text x="14" y="34" font-size="12.5" style="fill:var(--muted)">字符序列（含 pad）</text>
+          <g font-size="13.5" text-anchor="middle">
+            <rect x="14" y="48" width="40" height="34" rx="4" style="fill:var(--surface);stroke:var(--line-strong)"/><text x="34" y="70" style="fill:var(--fg)">把</text>
+            <rect x="14" y="88" width="40" height="34" rx="4" style="fill:var(--surface);stroke:var(--line-strong)"/><text x="34" y="110" style="fill:var(--fg)">灯</text>
+            <rect x="14" y="128" width="40" height="34" rx="4" style="fill:var(--surface);stroke:var(--line-strong)"/><text x="34" y="150" style="fill:var(--fg)">打</text>
+            <rect x="14" y="168" width="40" height="34" rx="4" style="fill:var(--surface);stroke:var(--line-strong)"/><text x="34" y="190" style="fill:var(--fg)">开</text>
+            <rect x="14" y="208" width="40" height="34" rx="4" style="fill:none;stroke:var(--line-strong);stroke-dasharray:4 3"/><text x="34" y="230" style="fill:var(--faint)">0</text>
+            <rect x="14" y="248" width="40" height="34" rx="4" style="fill:none;stroke:var(--line-strong);stroke-dasharray:4 3"/><text x="34" y="270" style="fill:var(--faint)">0</text>
+          </g>
+          <text x="14" y="302" font-size="12" style="fill:var(--faint)">Embedding：每格查表得 32 维向量</text>
+          <!-- 三路卷积 -->
+          <g stroke-width="1.5" marker-end="url(#arw)" style="stroke:var(--faint);fill:none">
+            <path d="M58,65 H186"/>
+            <path d="M58,145 H186"/>
+            <path d="M58,225 H186"/>
+          </g>
+          <g font-size="12.5" style="fill:var(--muted)">
+            <text x="122" y="56" text-anchor="middle">k=2 窗口</text>
+            <text x="122" y="136" text-anchor="middle">k=3 窗口</text>
+            <text x="122" y="216" text-anchor="middle">k=4 窗口</text>
+          </g>
+          <g text-anchor="middle" font-size="12.5">
+            <rect x="190" y="48" width="118" height="34" rx="5" style="fill:var(--surface);stroke:var(--accent)"/>
+            <text x="249" y="70" style="fill:var(--fg)">Conv1D k=2 ×64</text>
+            <rect x="190" y="128" width="118" height="34" rx="5" style="fill:var(--surface);stroke:var(--accent)"/>
+            <text x="249" y="150" style="fill:var(--fg)">Conv1D k=3 ×64</text>
+            <rect x="190" y="208" width="118" height="34" rx="5" style="fill:var(--surface);stroke:var(--accent)"/>
+            <text x="249" y="230" style="fill:var(--fg)">Conv1D k=4 ×64</text>
+          </g>
+          <g stroke-width="1.5" marker-end="url(#arw)" style="stroke:var(--faint);fill:none">
+            <path d="M312,65 H366"/>
+            <path d="M312,145 H366"/>
+            <path d="M312,225 H366"/>
+          </g>
+          <g text-anchor="middle" font-size="12.5">
+            <rect x="370" y="48" width="96" height="34" rx="5" style="fill:var(--surface);stroke:var(--line-strong)"/>
+            <text x="418" y="70" style="fill:var(--fg)">取每路最大</text>
+            <rect x="370" y="128" width="96" height="34" rx="5" style="fill:var(--surface);stroke:var(--line-strong)"/>
+            <text x="418" y="150" style="fill:var(--fg)">取每路最大</text>
+            <rect x="370" y="208" width="96" height="34" rx="5" style="fill:var(--surface);stroke:var(--line-strong)"/>
+            <text x="418" y="230" style="fill:var(--fg)">取每路最大</text>
+          </g>
+          <g stroke-width="1.5" marker-end="url(#arw)" style="stroke:var(--faint);fill:none">
+            <path d="M470,65 H510"/>
+            <path d="M470,145 H510"/>
+            <path d="M470,225 H510"/>
+          </g>
+          <rect x="514" y="48" width="30" height="194" rx="5" style="fill:var(--surface);stroke:var(--accent2)"/>
+          <text x="529" y="130" font-size="12.5" text-anchor="middle" style="fill:var(--fg)" transform="rotate(-90 529 130)">拼接 192 维</text>
+          <path d="M548,145 H578" stroke-width="1.5" marker-end="url(#arw)" style="stroke:var(--faint);fill:none"/>
+          <rect x="582" y="128" width="92" height="34" rx="5" style="fill:var(--surface);stroke:var(--accent2)"/>
+          <text x="628" y="150" font-size="12.5" text-anchor="middle" style="fill:var(--fg)">Dense + softmax</text>
+          <path d="M678,145 H706" stroke-width="1.5" marker-end="url(#arw)" style="stroke:var(--faint);fill:none"/>
+          <g font-size="12.5" text-anchor="middle">
+            <rect x="712" y="76" width="22" height="12" rx="3" style="fill:var(--accent)"/>
+            <rect x="712" y="94" width="8" height="12" rx="3" style="fill:var(--line-strong)"/>
+            <rect x="712" y="112" width="5" height="12" rx="3" style="fill:var(--line-strong)"/>
+            <rect x="712" y="130" width="8" height="12" rx="3" style="fill:var(--line-strong)"/>
+            <rect x="712" y="148" width="5" height="12" rx="3" style="fill:var(--line-strong)"/>
+            <rect x="712" y="166" width="6" height="12" rx="3" style="fill:var(--line-strong)"/>
+            <rect x="712" y="184" width="5" height="12" rx="3" style="fill:var(--line-strong)"/>
+            <rect x="712" y="202" width="5" height="12" rx="3" style="fill:var(--line-strong)"/>
+            <text x="700" y="240" style="fill:var(--muted)">8 类概率</text>
+          </g>
+        </svg>
+        <figcaption>字符级 TextCNN：三种宽度的卷积窗口并行扫描字符序列，各自取最强特征，拼接后投票出 8 类意图。</figcaption>
+      </figure>
+      <ul>
+        <li><strong>Embedding（500 × 32）</strong>：把字符 id 换成 32 维浮点向量。这些向量不是预设的，是训练学出来的——意思相近的字（如「开」「启」）会逐渐靠近。</li>
+        <li><strong>并联 Conv1D（k=2/3/4，各 64 通道）</strong>：卷积核在序列上滑动。k=2 看两个字（「开灯」）、k=3 看三个字（「打开灯」）、k=4 看四个字（「把灯打开」）——不同长度的关键词模式由不同路同时抓取。</li>
+        <li><strong>GlobalMaxPooling</strong>：每路输出取全局最大值，等价于问「这句话里最强的那个 n-gram 特征有多强」。代价是<strong>位置不敏感</strong>：「灯开」和「开灯」池化后可能很像——口语语序灵活，这反而是优点；但「别开灯」这类靠语序/否定表达含义的句子就难学（已知局限，阶段 8 再补）。</li>
+        <li><strong>Concatenate → Dense(8) → softmax</strong>：三路池化结果拼成 192 维，经全连接层投到 8 个类别，softmax 归一化成概率。</li>
+      </ul>
+      <p>参数量估算（也是「&lt;100 KB」的依据）：</p>
+      <div class="tablewrap">
+        <table>
+          <tr><th>层</th><th>参数计算</th><th>数量</th></tr>
+          <tr><td>Embedding 500 × 32</td><td>500 × 32</td><td>16,000</td></tr>
+          <tr><td>Conv1D k=2, 64 通道</td><td>2 × 32 × 64 + 64</td><td>4,160</td></tr>
+          <tr><td>Conv1D k=3, 64 通道</td><td>3 × 32 × 64 + 64</td><td>6,208</td></tr>
+          <tr><td>Conv1D k=4, 64 通道</td><td>4 × 32 × 64 + 64</td><td>8,256</td></tr>
+          <tr><td>Dense 192 → 8</td><td>192 × 8 + 8</td><td>1,544</td></tr>
+          <tr><td><strong>合计（估算）</strong></td><td></td><td><strong>≈ 36,000</strong></td></tr>
+        </table>
+      </div>
+      <p>float32 时约 145 KB，int8 量化后约 36 KB（第 4 章展开）——余量足够的 &lt;100 KB。</p>
+
+      <h3>训练循环：让参数自己找方向</h3>
+      <p>训练做的事很朴素：把 train 集一遍遍喂给模型，每遍算出「错得多远」（loss），反向传播把每个参数往让 loss 变小的方向挪一点。几个关键设定：</p>
+      <div class="tablewrap">
+        <table>
+          <tr><th>设定</th><th>值</th><th>作用</th></tr>
+          <tr><td>batch_size</td><td>32</td><td>一次喂 32 条，算一次平均梯度、更新一次参数</td></tr>
+          <tr><td>epochs + 早停</td><td>最多 100 遍，val_loss 连续 5 遍不降即停</td><td>防止越练越「死记硬背」；停时回滚到 val 最好的一版权重</td></tr>
+          <tr><td>优化器 / 损失</td><td>Adam（默认学习率）/ 交叉熵</td><td>交叉熵衡量「预测概率分布」与「正确类」的差距，分类任务标配</td></tr>
+          <tr><td>随机种子</td><td>全部固定（Python / NumPy / TF）</td><td>保证实验可复现，否则两次训练结果对不上</td></tr>
+        </table>
+      </div>
+      <pre><code># 结构示意（Keras Functional API，实施时按所用版本微调）
+inp = keras.Input(shape=(MAX_LEN,))
+emb = keras.layers.Embedding(VOCAB, 32)(inp)
+
+convs = [keras.layers.GlobalMaxPooling1D()(
+             keras.layers.Conv1D(64, k, activation="relu")(emb))
+         for k in (2, 3, 4)]                     # 三路并行
+
+x   = keras.layers.Concatenate()(convs)          # 192 维
+out = keras.layers.Dense(8, activation="softmax")(x)
+model = keras.Model(inp, out)
+
+model.compile(optimizer="adam",
+              loss="sparse_categorical_crossentropy",
+              metrics=["accuracy"])
+
+stop = keras.callbacks.EarlyStopping(
+    monitor="val_loss", patience=5, restore_best_weights=True)
+
+model.fit(x_train, y_train,
+          validation_data=(x_val, y_val),
+          epochs=100, batch_size=32, callbacks=[stop])</code></pre>
+
+      <h3>评估：三个必须看的指标</h3>
+      <ol>
+        <li><strong>测试集准确率（分类别看）</strong>：总体目标 ≥95%，但必须逐类看——unknown 或 stop 这类小类被平均分掩盖是常见问题。</li>
+        <li><strong>混淆矩阵</strong>：行是真实类别、列是预测类别，对角线是答对数。它的价值在非对角线上——「谁被认成了谁」直接指向问题。读法示意：</li>
+      </ol>
+      <div class="tablewrap">
+        <table>
+          <tr><th>真实 \ 预测</th><th>led_off</th><th>led_blink</th><th>stop</th></tr>
+          <tr><td>led_off</td><td><strong>98%</strong></td><td>1%</td><td>1%</td></tr>
+          <tr><td>led_blink</td><td>4%</td><td><strong>94%</strong></td><td>2%</td></tr>
+          <tr><td>stop</td><td>3%</td><td>1%</td><td><strong>96%</strong></td></tr>
+        </table>
+      </div>
+      <p>（数值为读法示意，真实矩阵是 8×8）上表说明：「关灯」的说法偶尔被当成「闪烁」——回到语料看这两个类的模板是不是有重叠句式，比调网络结构更有效。</p>
+      <ol start="3">
+        <li><strong>拒识两个方向都要看</strong>：漏拒（无关句被当成命令执行——最糟，灯会莫名亮起来）与误拒（正常命令被判 unknown——体验差）。前者用 unknown 测试集样本量衡量，后者用动作类被判 unknown 的比例衡量。</li>
+      </ol>
+      <div class="note">
+        <p><span class="t">评估纪律回顾：</span>训练期间反复看 val、调超参；宣布成绩时才跑一次 test，把数字写进评估报告（阶段 5 的交付物之一）。</p>
+      </div>
+
+      <h3>训练问题速查</h3>
+      <div class="tablewrap">
+        <table>
+          <tr><th>症状</th><th>多半原因</th><th>对策</th></tr>
+          <tr><td>train 准确率高、val 低</td><td>过拟合（在背训练集）</td><td>早停已开；补模板多样性；必要时减通道数</td></tr>
+          <tr><td>两个都低</td><td>欠拟合或数据覆盖不足</td><td>加训练轮数；补模板（不是补条数）</td></tr>
+          <tr><td>unknown 漏拒多</td><td>unknown 样本不够「难」</td><td>补域内难例：把X调成颜色、别的设备、故障询问</td></tr>
+          <tr><td>某两类互混</td><td>语义边界模糊</td><td>回到标注规范检查（如停止类三分）；补区分性样本</td></tr>
+          <tr><td>两次训练结果对不上</td><td>种子没固定 / 数据顺序随机</td><td>固定全部种子，shuffle 也吃同一个种子</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="quant">
+      <h2>阶段 5 后半：int8 量化</h2>
+      <p class="chapter-note">训练产出 float32 模型（约 145 KB）。上板前把它压成 int8（约 36 KB）——这一章讲清楚：压缩为什么可行、误差从哪来、怎么做前后对比。</p>
+
+      <h3>为什么要量化</h3>
+      <div class="tablewrap">
+        <table>
+          <tr><th>维度</th><th>float32</th><th>int8</th><th>效果</th></tr>
+          <tr><td>每个参数占</td><td>4 字节</td><td>1 字节</td><td>模型体积 ≈ 1/4（145 KB → 36 KB）</td></tr>
+          <tr><td>推理中间结果（激活）</td><td>4 字节</td><td>1 字节</td><td>RAM 峰值明显下降</td></tr>
+          <tr><td>乘加运算</td><td>浮点</td><td>定点整数</td><td>ESP32-S3 对 int8 有加速内核，通常更快</td></tr>
+          <tr><td>代价</td><td>—</td><td>—</td><td>有精度损失，要用评估确认「掉点可接受」</td></tr>
+        </table>
+      </div>
+
+      <h3>一个公式看懂量化</h3>
+      <p>量化的本质：<strong>用一把等距的整数格尺去量一段实数的区间</strong>。假设某层权重落在 [−3.2, 3.4]，把这段区间线性摊到 int8 的 256 个格子上：</p>
+      <figure>
+        <svg viewBox="0 0 720 208" role="img" aria-label="量化原理数轴图：实数区间负3.2到3.4线性映射到int8的负128到127" style="width:100%;height:auto">
+          <text x="70" y="30" font-size="12.5" style="fill:var(--muted)">实数值域（float32）</text>
+          <line x1="70" y1="64" x2="650" y2="64" stroke-width="1.5" style="stroke:var(--muted)"/>
+          <line x1="70" y1="58" x2="70" y2="70" stroke-width="1.5" style="stroke:var(--muted)"/>
+          <line x1="351" y1="58" x2="351" y2="70" stroke-width="1.5" style="stroke:var(--muted)"/>
+          <line x1="650" y1="58" x2="650" y2="70" stroke-width="1.5" style="stroke:var(--muted)"/>
+          <text x="70" y="52" font-size="12.5" text-anchor="middle" style="fill:var(--fg)">−3.2</text>
+          <text x="351" y="52" font-size="12.5" text-anchor="middle" style="fill:var(--fg)">0</text>
+          <text x="650" y="52" font-size="12.5" text-anchor="middle" style="fill:var(--fg)">3.4</text>
+
+          <text x="70" y="190" font-size="12.5" style="fill:var(--muted)">整数格（int8，共 256 格）</text>
+          <line x1="70" y1="150" x2="650" y2="150" stroke-width="1.5" style="stroke:var(--muted)"/>
+          <line x1="70" y1="144" x2="70" y2="156" stroke-width="1.5" style="stroke:var(--muted)"/>
+          <line x1="361" y1="144" x2="361" y2="156" stroke-width="1.5" style="stroke:var(--muted)"/>
+          <line x1="650" y1="144" x2="650" y2="156" stroke-width="1.5" style="stroke:var(--muted)"/>
+          <text x="70" y="174" font-size="12.5" text-anchor="middle" style="fill:var(--fg)">−128</text>
+          <text x="361" y="174" font-size="12.5" text-anchor="middle" style="fill:var(--accent)">−4</text>
+          <text x="650" y="174" font-size="12.5" text-anchor="middle" style="fill:var(--fg)">127</text>
+
+          <line x1="70" y1="64" x2="70" y2="150" stroke-dasharray="4 4" style="stroke:var(--faint)"/>
+          <line x1="650" y1="64" x2="650" y2="150" stroke-dasharray="4 4" style="stroke:var(--faint)"/>
+          <line x1="351" y1="70" x2="361" y2="144" stroke-dasharray="4 4" style="stroke:var(--accent)"/>
+          <text x="366" y="112" font-size="12" style="fill:var(--accent)">实数 0 落在格 −4 上 →</text>
+          <text x="366" y="128" font-size="12" style="fill:var(--accent)">这就是 zero_point</text>
+
+          <text x="70" y="204" font-size="12.5" style="fill:var(--fg)">scale ＝ (3.4 −(−3.2)) ÷ 255 ≈ 0.0259 ｜ 还原：实数 ≈ scale ×（格号 − zero_point），误差 ≤ 半个格 ≈ 0.013</text>
+        </svg>
+        <figcaption>量化 = 线性映射 + 对齐零点。范围 [−3.2, 3.4] 是举例；实际每层的范围由「代表数据集」统计出来。</figcaption>
+      </figure>
+      <ul>
+        <li><strong>scale</strong>：一个格子代表多少实数（本例 0.0259）。范围越窄、格子利用越充分，误差越小——这就是「校准」存在的意义。</li>
+        <li><strong>zero_point</strong>：让实数 0 也落在某个格子上的偏移（本例 −4）。没有它，0 附近的值会系统性偏移。</li>
+        <li><strong>误差上限 ≈ 半个格</strong>：整数量化必然「四舍五入」，0.013 这个量级通常不影响分类结论——但要靠评估证实，不能想当然。</li>
+      </ul>
+
+      <h3>全整型量化流程</h3>
+      <ol>
+        <li>训练出 float 模型（上一章产物）。</li>
+        <li>准备<strong>代表数据集</strong>：从训练集抽几百条喂给转换器，让它逐层统计输入的数值范围，定出每层的 scale / zero_point。<strong>用训练集，不用 test</strong>（test 只留给最终评估）。</li>
+        <li>转换：TFLiteConverter 全整型量化——权重、激活、输入输出全部 int8。</li>
+        <li>得到 <code>model_int8.tflite</code>。</li>
+        <li>前后对比：同一个 test 集上跑 float 与 int8 两版模型，准确率差值目标 ≤1–2 个百分点；数字写进评估报告。</li>
+      </ol>
+      <pre><code># 转换骨架（示意，实施时按所用版本微调）
+def rep_data():
+    for x in x_train[:200]:                 # 代表数据：训练集抽 200 条
+        yield [x[None, :].astype("float32")]
+
+conv = tf.lite.TFLiteConverter.from_keras_model(model)
+conv.optimizations = [tf.lite.Optimize.DEFAULT]
+conv.representative_dataset = rep_data
+conv.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+conv.inference_input_type  = tf.int8
+conv.inference_output_type = tf.int8
+
+tflite_model = conv.convert()
+open("model_int8.tflite", "wb").write(tflite_model)</code></pre>
+      <div class="note">
+        <p><span class="t">一个实用细节：</span>输出也是 int8 时，分类只需要<strong>比大小</strong>（找最大值就是 argmax），不必反量化回浮点——板端可以省掉这一步运算。但注意训练与部署的编码必须一致：C 侧 tokenizer 用同一个 vocab.txt、同一个 max_len，否则模型看到的输入分布与训练时不同。</p>
+      </div>
+
+      <h3>导出进固件</h3>
+      <p>把 .tflite 的二进制转成 C 数组（如 <code>xxd -i model_int8.tflite &gt; model_data.cc</code> 或专用脚本），编译进固件。数组声明为 <code>const</code> 时放在 flash 的只读段，不占 RAM。具体接入方式（直接编译进应用 or 放进分区）在阶段 6 决定。</p>
+    </section>
+
+    <section id="stage6">
+      <h2>阶段 6：板端衔接</h2>
+      <p class="chapter-note">训练与量化完成后的下一步是把模型接进固件。这里只给全景，细节留到阶段 6 实施时展开。</p>
+
+      <h3>部署时的双层决策</h3>
+      <p>模型不是唯一决策者。部署后的判定按这个顺序进行——这正是「决策四」里两道闸门的落地：</p>
+      <figure>
+        <svg viewBox="0 0 560 372" role="img" aria-label="板端决策流程：模型推理按置信度阈值判断，未过则交给关键词规则兜底，都不中回复没听懂" style="width:100%;max-width:560px;height:auto">
+          <defs>
+            <marker id="arw2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill:var(--faint)"/>
+            </marker>
+          </defs>
+          <g stroke-width="1.5" marker-end="url(#arw2)" style="stroke:var(--faint);fill:none">
+            <path d="M230,46 V64"/>
+            <path d="M230,102 V118"/>
+            <path d="M340,146 H396"/>
+            <path d="M230,172 V194"/>
+            <path d="M230,232 V248"/>
+            <path d="M340,276 H396"/>
+            <path d="M230,302 V324"/>
+          </g>
+          <g text-anchor="middle" font-size="12.5">
+            <rect x="150" y="14" width="160" height="32" rx="5" style="fill:var(--surface);stroke:var(--line-strong)"/>
+            <text x="230" y="35" style="fill:var(--fg)">输入文本（串口 / WiFi）</text>
+
+            <rect x="130" y="64" width="200" height="38" rx="5" style="fill:var(--surface);stroke:var(--accent)"/>
+            <text x="230" y="88" style="fill:var(--fg)">模型推理 → 8 类概率</text>
+
+            <path d="M230,118 L340,146 L230,174 L120,146 Z" style="fill:var(--surface);stroke:var(--line-strong)"/>
+            <text x="230" y="151" style="fill:var(--fg)">置信度 ≥ 阈值？</text>
+
+            <rect x="400" y="130" width="146" height="32" rx="5" style="fill:var(--surface);stroke:var(--accent)"/>
+            <text x="473" y="151" style="fill:var(--accent)">执行（模型结果）</text>
+
+            <rect x="130" y="194" width="200" height="38" rx="5" style="fill:var(--surface);stroke:var(--accent)"/>
+            <text x="230" y="218" style="fill:var(--fg)">关键词规则匹配</text>
+
+            <path d="M230,248 L340,276 L230,304 L120,276 Z" style="fill:var(--surface);stroke:var(--line-strong)"/>
+            <text x="230" y="281" style="fill:var(--fg)">规则命中？</text>
+
+            <rect x="400" y="260" width="146" height="32" rx="5" style="fill:var(--surface);stroke:var(--accent)"/>
+            <text x="473" y="281" style="fill:var(--accent)">执行（规则结果）</text>
+
+            <rect x="150" y="324" width="160" height="32" rx="5" style="fill:var(--surface);stroke:var(--line-strong)"/>
+            <text x="230" y="345" style="fill:var(--muted)">回复「抱歉，我没听懂」</text>
+          </g>
+          <g font-size="12" style="fill:var(--muted)">
+            <text x="350" y="138">是</text>
+            <text x="350" y="268">是</text>
+            <text x="244" y="190">否</text>
+            <text x="244" y="320">否</text>
+          </g>
+        </svg>
+        <figcaption>板端双层决策：模型（带阈值）→ 规则兜底 → 拒识。规则永久保留，是模型的保险绳。</figcaption>
+      </figure>
+
+      <h3>三个实施要点</h3>
+      <ul>
+        <li><strong>C 侧 tokenizer（约 20 行）</strong>：UTF-8 逐字符解码 → 查 vocab 表得 id → 词表外字符跳过 → 补 pad 到 max_len。因为它极简，字符级方案在端侧的优势在这里兑现。</li>
+        <li><strong>阈值调优</strong>：在 test 集上扫一遍，找「漏拒 / 误拒」平衡点；再用串口手敲真实验证。阈值不是拍脑袋，是评估出来的。</li>
+        <li><strong>验收标尺</strong>：手敲 20 句现编口语（不照抄训练语料），通过率 ≥ 2/3，且用阶段 4 的规则基线数对比——证明「模型明显优于纯规则」。</li>
+      </ul>
+    </section>
+
+    <section id="checklist">
+      <h2>检查清单与下一步</h2>
+
+      <h3>阶段 4 当前进度</h3>
+      <div class="tablewrap">
+        <table>
+          <tr><th>事项</th><th>状态</th></tr>
+          <tr><td>设计文档 <code>docs/STAGE4_DESIGN.md</code>（决策记要已确认）</td><td>已完成</td></tr>
+          <tr><td>语料源 <code>tools/intents.json</code>（8 类、29 个槽位、组合数 484–614/类）</td><td>已完成</td></tr>
+          <tr><td>生成器 <code>tools/gen_corpus.py</code>（展开 / 采样 / 划分 / 自检 / 报告）</td><td>下一步</td></tr>
+          <tr><td>统计报告验收（条数均衡、字符集 ≤500、无泄漏）</td><td>待做</td></tr>
+          <tr><td>规则基线 <code>tools/rule_baseline.py</code> + <code>nlu.c</code> 词池精化 + 真板抽查</td><td>待做</td></tr>
+        </table>
+      </div>
+
+      <h3>阶段 5 开工前的准备</h3>
+      <ul>
+        <li><strong>数据前提</strong>：<code>vocab.txt</code> 与三集 TSV 已生成并通过验收——训练脚本以它们为唯一输入。</li>
+        <li><strong>环境</strong>：TensorFlow / Keras（CPU 足够）。WSL2 或 Windows 直装皆可；具体版本与安装方式在开工时查证官方最新指引再定，不在本页锁死。</li>
+        <li><strong>三条纪律</strong>：种子固定；调参只动 val；test 只考一次。</li>
+        <li><strong>交付物</strong>：int8 模型 + 评估报告（测试集准确率、逐类指标、混淆矩阵、量化前后对比）。</li>
+      </ul>
+
+      <h3>最容易踩的三个坑（本页重点回顾）</h3>
+      <ol>
+        <li><strong>分布不一致</strong>：测试集要模拟「现编口语」，所以用模板级划分；训练和部署的编码（词表、max_len）必须逐字节一致。</li>
+        <li><strong>拒识只做一半</strong>：只训 unknown 类不够、只靠阈值也不够——两道闸门都要有（决策四 / 阶段 6）。</li>
+        <li><strong>用 test 调参</strong>：成绩单只能出一次，调参永远看 val（全景地图的纪律）。</li>
+      </ol>
+    </section>
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <p>配套文档：<code>docs/STAGE4_DESIGN.md</code>（阶段 4 细化设计）、<code>docs/ROADMAP.md</code>（路线图）、<code>tools/intents.json</code>（语料源）。本页为讲解材料，与代码不一致时以仓库文档为准。</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  'use strict';
+  /* 主题三态：auto → light → dark */
+  var btn = document.getElementById('themeBtn');
+  var MODES = ['auto','light','dark'];
+  var LABEL = {auto:'主题：自动', light:'主题：亮色', dark:'主题：暗色'};
+  function apply(mode){
+    if(mode === 'auto'){ document.documentElement.removeAttribute('data-theme'); }
+    else{ document.documentElement.setAttribute('data-theme', mode); }
+    btn.textContent = LABEL[mode];
+  }
+  var saved = null;
+  try{ saved = localStorage.getItem('nlu-guide-theme'); }catch(e){}
+  var mode = MODES.indexOf(saved) >= 0 ? saved : 'auto';
+  apply(mode);
+  btn.addEventListener('click', function(){
+    mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
+    apply(mode);
+    try{ localStorage.setItem('nlu-guide-theme', mode); }catch(e){}
+  });
+
+  /* 目录高亮 */
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  var map = {};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section'));
+  if('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting){
+          links.forEach(function(a){ a.classList.remove('active'); });
+          var a = map[en.target.id];
+          if(a){ a.classList.add('active'); }
+        }
+      });
+    }, {rootMargin:'-15% 0px -70% 0px'});
+    sections.forEach(function(s){ io.observe(s); });
+  }
+})();
+</script>
+</body>
+</html>
