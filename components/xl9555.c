@@ -1,22 +1,11 @@
 /**
- ****************************************************************************************************
-* @file        xl9555.c
-* @author      正点原子团队(ALIENTEK)
-* @version     V1.0
-* @date        2023-08-26
-* @brief       XL9555驱动代码
-* @license     Copyright (c) 2020-2032, 广州市星翼电子科技有限公司
-****************************************************************************************************
-* @attention
-*
-* 实验平台:正点原子 ESP32-S3 开发板
-* 在线视频:www.yuanzige.com
-* 技术论坛:www.openedv.com
-* 公司网址:www.alientek.com
-* 购买地址:openedv.taobao.com
-*
-****************************************************************************************************
-*/
+ * @file    xl9555.c
+ * @brief   XL9555 IO 扩展驱动（蜂鸣器输出 / 按键输入）
+ * @author  sdadz-luo
+ *
+ * 移植自正点原子 DNESP32S3 配套例程 08_iic_exio 的 components/BSP；
+ * 版权归属与来源声明见仓库 README「第三方代码来源」。
+ */
 
 #include "xl9555.h"
 
@@ -78,19 +67,16 @@ uint16_t xl9555_pin_write(uint16_t pin, int val)
         if (val)
         {
             w_data[0] |= (uint8_t)(0xFF & pin);
-        }
-        else
+        }else
         {
             w_data[0] &= ~(uint8_t)(0xFF & pin);
         }
-    }
-    else
+    }else
     {
         if (val)
         {
             w_data[1] |= (uint8_t)(0xFF & (pin >> 8));
-        }
-        else
+        }else
         {
             w_data[1] &= ~(uint8_t)(0xFF & (pin >> 8));
         }
@@ -152,8 +138,7 @@ uint16_t xl9555_ioconfig(uint16_t config_value)
                 vTaskDelay(5000); 
                 esp_restart();
             }
-        }
-        else
+        }else
         {
             xl9555_failed = 0;
             break;
@@ -239,8 +224,7 @@ uint8_t xl9555_key_scan(uint8_t mode)
         {
             keyval = KEY3_PRES;
         }
-    }
-    else if (KEY0 == 1 && KEY1 == 1 && KEY2 == 1 && KEY3 == 1)          /* 没有任何按键按下, 标记按键松开 */
+    }else if (KEY0 == 1 && KEY1 == 1 && KEY2 == 1 && KEY3 == 1)          /* 没有任何按键按下, 标记按键松开 */
     {
         key_up = 1;
     }

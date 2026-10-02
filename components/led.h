@@ -1,21 +1,10 @@
 /**
- ****************************************************************************************************
- * @file        led.h
- * @author      正点原子团队(ALIENTEK)
- * @version     V1.0
- * @date        2023-08-26
- * @brief       LED驱动代码
- * @license     Copyright (c) 2020-2032, 广州市星翼电子科技有限公司
- ****************************************************************************************************
- * @attention
+ * @file    led.h
+ * @brief   LED 驱动接口（GPIO1，低电平点亮）
+ * @author  sdadz-luo
  *
- * 实验平台:正点原子 ESP32-S3 开发板
- * 在线视频:www.yuanzige.com
- * 技术论坛:www.openedv.com
- * 公司网址:www.alientek.com
- * 购买地址:openedv.taobao.com
- * 
- ****************************************************************************************************
+ * 移植自正点原子 DNESP32S3 配套例程 08_iic_exio 的 components/BSP；
+ * 版权归属与来源声明见仓库 README「第三方代码来源」。
  */
 
 #ifndef __LED_H_
@@ -34,16 +23,10 @@ enum GPIO_OUTPUT_STATE
     PIN_SET
 };
 
-/* LED端口定义 */
-#define LED(x)          do { x ?                                      \
-                             gpio_set_level(LED_GPIO_PIN, PIN_SET) :  \
-                             gpio_set_level(LED_GPIO_PIN, PIN_RESET); \
-                        } while(0)  /* LED翻转 */
-
-/* LED取反定义 */
-#define LED_TOGGLE()    do { gpio_set_level(LED_GPIO_PIN, !gpio_get_level(LED_GPIO_PIN)); } while(0)  /* LED翻转 */
-
 /* 函数声明*/
 void led_init(void);    /* 初始化LED */
+void led_on(void);     /* 打开LED */
+void led_off(void);    /* 关闭LED */
+void led_toggle(void);  /* LED翻转 */
 
 #endif

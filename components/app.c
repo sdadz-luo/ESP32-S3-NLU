@@ -39,9 +39,9 @@ void app_hw_init(void)
     ESP_LOGI(TAG, "XL9555 self-check: %s, input reg = 0x%04X",
              esp_err_to_name(err), (unsigned)(in[1] << 8 | in[0]));
 
-    LED(0);                                 /* LED 亮 300ms：视觉自检 */
+    led_on();                                /* LED 亮 300ms：视觉自检 */
     vTaskDelay(pdMS_TO_TICKS(300));
-    LED(1);
+    led_off();
 
     xl9555_pin_write(BEEP_IO, 0);           /* 蜂鸣器短鸣 150ms：验证 XL9555 写通路 */
     vTaskDelay(pdMS_TO_TICKS(150));

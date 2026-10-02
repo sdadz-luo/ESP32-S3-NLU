@@ -177,5 +177,5 @@ void app_main(void)
 ## 附录：关键事实
 
 - 板载电平：LED 接 GPIO1、低电平点亮；蜂鸣器经 XL9555（BEEP_IO = 0x0008）驱动、写 0 为响；按键 KEY0~3 在 XL9555 输入寄存器
-- BSP 来源：移植自配套例程 08_iic_exio 的 components/BSP（LED / IIC / XL9555），保留原厂版权注释；该 BSP 使用 legacy I2C 驱动（v6.1 弃用告警、v7.0 移除），阶段 1 接受
+- BSP 来源：移植自配套例程 08_iic_exio 的 components/BSP（LED / IIC / XL9555），文件头为自有注释、版权与来源声明集中在 README；该 BSP 使用 legacy I2C 驱动（v6.1 弃用告警、v7.0 移除），阶段 1 接受
 - 组件机制依据：ESP-IDF `tools/cmake/project.cmake` 的 `__project_component_dir()`——目录含 CMakeLists.txt 时以目录自身为组件（"The directory itself is a valid idf component"），工程 components/ 与 main/ 均经此路径注册

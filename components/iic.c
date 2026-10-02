@@ -1,21 +1,11 @@
 /**
- ****************************************************************************************************
- * @file        iic.c
- * @author      正点原子团队(ALIENTEK)
- * @version     V1.0
- * @date        2023-08-26
- * @brief       IIC驱动代码
- * @license     Copyright (c) 2020-2032, 广州市星翼电子科技有限公司
- ****************************************************************************************************
- * @attention
+ * @file    iic.c
+ * @brief   I2C 主机驱动（legacy i2c_master，400kHz）
+ * @author  sdadz-luo
  *
- * 实验平台:正点原子 ESP32-S3 开发板
- * 在线视频:www.yuanzige.com
- * 技术论坛:www.openedv.com
- * 公司网址:www.alientek.com
- * 购买地址:openedv.taobao.com
- *
- ****************************************************************************************************
+ * 移植自正点原子 DNESP32S3 配套例程 08_iic_exio 的 components/BSP；
+ * 版权归属与来源声明见仓库 README「第三方代码来源」。
+ * 注意：legacy 驱动在 ESP-IDF v6.1 已弃用（v7.0 移除），当前接受。
  */
 
 #include "iic.h"
@@ -36,8 +26,7 @@ i2c_obj_t iic_init(uint8_t iic_port)
     if (iic_port == I2C_NUM_0)
     {
         i = 0;
-    }
-    else
+    }else
     {
         i = 1;
     }
@@ -49,8 +38,7 @@ i2c_obj_t iic_init(uint8_t iic_port)
     {
         iic_master[i].scl = IIC0_SCL_GPIO_PIN;
         iic_master[i].sda = IIC0_SDA_GPIO_PIN;
-    }
-    else
+    }else
     {
         iic_master[i].scl = IIC1_SCL_GPIO_PIN;
         iic_master[i].sda = IIC1_SDA_GPIO_PIN;
