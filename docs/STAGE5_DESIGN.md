@@ -62,8 +62,10 @@ CPU 训练足够，不与 WSL2 折腾。
 
 ## 量化与导出
 
-- 全整型 int8：权重 / 激活 / 输入输出；代表数据集 = train 分层抽 300 条
-  （各类覆盖，绝不使用 test）
+- 全整型 int8：权重 / 激活——**输入输出不显式量化**（TF 2.21 不接受 int32
+  输入类型；不设定时输入保持原生 int32 token id、输出 float32，实测零掉点，
+  详见 STAGE6_DESIGN 预研）；代表数据集 = train 分层抽 300 条（各类覆盖，
+  绝不使用 test）
 - 量化前后对比：同一 test 集跑 float 与 int8，掉点 ≤2 个百分点
 - 导出：`model_int8.tflite` + C 数组（`model_int8.cc/h`，const 数组，
   阶段 6 编译进固件或放分区）

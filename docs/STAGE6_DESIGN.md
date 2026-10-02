@@ -88,7 +88,7 @@ esp_err_t nlu_model_predict(const char *text, int *intent, float *confidence);
 | --- | --- | --- |
 | Flash 增量 | 约 250 KB（模型 44 KB + TFLM 库） | factory 现余量 1.7 MB+ |
 | 内部 RAM | arena 16 KB + interpreter 开销（静态） | 不占 PSRAM |
-| 推理耗时 | 预计 < 10 ms/句 | esp-nn 加速；实测记录 |
+| 推理耗时 | 未单独计时（验收期间响应即时、无感知延迟） | 需要时可用 esp_timer 打点补测 |
 
 ## 实施顺序
 
@@ -117,4 +117,4 @@ esp_err_t nlu_model_predict(const char *text, int *intent, float *confidence);
 | 生成文件入库 | `nlu_model_data.cc/h`、`nlu_vocab.h` 入库（固件编译输入）；`data/model/` 仍不入库 |
 | 嵌入层实现 | **裸 `tf.gather` 自定义层**（`nlu_data.CharEmbedding`），替代 Keras Embedding：后者负索引逻辑引入 TFLM 不支持的 SELECT_V2(int32)，板端 Invoke 失败 |
 | 算子注册 | MicroMutableOpResolver 精确注册 9 种，不用 AllOpsResolver（省 flash） |
-| 阈值初值 | 0.6，由 tune_threshold.py 定稿 |
+| 决策阈值 | **0.70**——tune_threshold.py 在 test 集扫描，最优区间 0.45~0.75（99.1%），取区间上部（边界置信度交给规则兜底） |

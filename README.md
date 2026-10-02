@@ -76,8 +76,8 @@ python -m esptool --chip esp32s3 -p COM5 write_flash 0xC00000 data/font16.bin
 
 ```text
 .
-├── main/                  # 应用入口（app_main）
-├── components/            # 四层应用代码（目录即组件，源文件平铺）
+├── main/                  # 应用入口（app_main）+ 组件依赖声明（idf_component.yml）
+├── components/            # 四层应用代码与模型数据（目录即组件，源文件平铺）
 ├── tools/                 # 工具：字库 / 词池编辑 / 语料 / 规则基线 / 训练与量化
 ├── data/                  # 字库 / 语料 / 模型产物（不入库，见 data/README.md）
 ├── docs/                  # 路线图与各阶段细化设计

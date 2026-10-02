@@ -223,7 +223,7 @@ footer .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
   <div class="wrap">
     <p class="kicker">ESP32-S3 文本 NLU · 阶段 4–5 指南 · 2026-10-02</p>
     <h1>从一句话到端侧模型</h1>
-    <p class="lede">「准备语料」与「训练模型」的完整讲解：每个设计决策背后的原理、这条流水线的每一步在做什么、以及怎么判断它做对了。项目现状：阶段 1–3 已验收，阶段 4 实施中。</p>
+    <p class="lede">「准备语料」与「训练模型」的完整讲解：每个设计决策背后的原理、这条流水线的每一步在做什么、以及怎么判断它做对了。项目现状：阶段 1–6 已验收——本页所讲的完整链路（语料 → 模型 → 板端双层决策）已在开发板上跑通；下一步阶段 7（WiFi 通道）。</p>
 
     <div class="demo" aria-label="NLU 三步演示：文字变编号，再变类别概率">
       <div class="stage">
@@ -577,7 +577,7 @@ footer .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
         <figcaption>字符级 TextCNN：三种宽度的卷积窗口并行扫描字符序列，各自取最强特征，拼接后投票出 8 类意图。</figcaption>
       </figure>
       <ul>
-        <li><strong>Embedding（500 × 32）</strong>：把字符 id 换成 32 维浮点向量。这些向量不是预设的，是训练学出来的——意思相近的字（如「开」「启」）会逐渐靠近。</li>
+        <li><strong>Embedding（词表 × 32）</strong>：把字符 id 换成 32 维浮点向量。这些向量不是预设的，是训练学出来的——意思相近的字（如「开」「启」）会逐渐靠近。（实现上用裸 <code>tf.gather</code> 查表层，原因见量化一节的实战细节。）</li>
         <li><strong>并联 Conv1D（k=2/3/4，各 64 通道）</strong>：卷积核在序列上滑动。k=2 看两个字（「开灯」）、k=3 看三个字（「打开灯」）、k=4 看四个字（「把灯打开」）——不同长度的关键词模式由不同路同时抓取。</li>
         <li><strong>GlobalMaxPooling</strong>：每路输出取全局最大值，等价于问「这句话里最强的那个 n-gram 特征有多强」。代价是<strong>位置不敏感</strong>：「灯开」和「开灯」池化后可能很像——口语语序灵活，这反而是优点；但「别开灯」这类靠语序/否定表达含义的句子就难学（已知局限，阶段 8 再补）。</li>
         <li><strong>Concatenate → Dense(8) → softmax</strong>：三路池化结果拼成 192 维，经全连接层投到 8 个类别，softmax 归一化成概率。</li>
@@ -721,7 +721,7 @@ model.fit(x_train, y_train,
       <ol>
         <li>训练出 float 模型（上一章产物）。</li>
         <li>准备<strong>代表数据集</strong>：从训练集抽几百条喂给转换器，让它逐层统计输入的数值范围，定出每层的 scale / zero_point。<strong>用训练集，不用 test</strong>（test 只留给最终评估）。</li>
-        <li>转换：TFLiteConverter 全整型量化——权重、激活、输入输出全部 int8。</li>
+        <li>转换：TFLiteConverter 全整型量化——权重、激活 int8；<strong>输入输出不显式量化</strong>（TF 新版不接受 int32 输入类型；不设定时输入保持原生 int32、输出 float32）。</li>
         <li>得到 <code>model_int8.tflite</code>。</li>
         <li>前后对比：同一个 test 集上跑 float 与 int8 两版模型，准确率差值目标 ≤1–2 个百分点；数字写进评估报告。</li>
       </ol>
@@ -740,7 +740,7 @@ conv.inference_output_type = tf.int8
 tflite_model = conv.convert()
 open("model_int8.tflite", "wb").write(tflite_model)</code></pre>
       <div class="note">
-        <p><span class="t">一个实用细节：</span>输出也是 int8 时，分类只需要<strong>比大小</strong>（找最大值就是 argmax），不必反量化回浮点——板端可以省掉这一步运算。但注意训练与部署的编码必须一致：C 侧 tokenizer 用同一个 vocab.txt、同一个 max_len，否则模型看到的输入分布与训练时不同。</p>
+        <p><span class="t">两个实战细节（本项目实测）：</span>① 文本模型的输入是 token id（int32，超出 int8 范围），量化时不要强行指定输入输出类型——不设定时输入保持 int32、输出 float32、权重与激活照常 int8，实测零掉点；② Embedding 层不要用 Keras 自带的：它的负索引语义会引入 TFLM 不支持的算子（SELECT_V2 不支持 int32），改用裸 <code>tf.gather</code> 查表层即可。另：训练与部署的编码必须一致（同一个 vocab.txt、同一个 max_len）。</p>
       </div>
 
       <h3>导出进固件</h3>
@@ -813,26 +813,24 @@ open("model_int8.tflite", "wb").write(tflite_model)</code></pre>
     </section>
 
     <section id="checklist">
-      <h2>检查清单与下一步</h2>
+      <h2>检查清单与现状</h2>
 
-      <h3>阶段 4 当前进度</h3>
+      <h3>全链路现状（2026-10-02）</h3>
       <div class="tablewrap">
         <table>
-          <tr><th>事项</th><th>状态</th></tr>
-          <tr><td>设计文档 <code>docs/STAGE4_DESIGN.md</code>（决策记要已确认）</td><td>已完成</td></tr>
-          <tr><td>语料源 <code>tools/intents.json</code>（8 类、29 个槽位、组合数 484–614/类）</td><td>已完成</td></tr>
-          <tr><td>生成器 <code>tools/gen_corpus.py</code>（展开 / 采样 / 划分 / 自检 / 报告）</td><td>下一步</td></tr>
-          <tr><td>统计报告验收（条数均衡、字符集 ≤500、无泄漏）</td><td>待做</td></tr>
-          <tr><td>规则基线 <code>tools/rule_baseline.py</code> + <code>nlu.c</code> 词池精化 + 真板抽查</td><td>待做</td></tr>
+          <tr><th>阶段</th><th>状态</th></tr>
+          <tr><td>4 数据工程</td><td>已完成：语料生成流水线 + 规则基线（test 82.8%）；语料经阶段 6 两轮迭代</td></tr>
+          <tr><td>5 训练与量化</td><td>已完成：test 98.9%（逐类 ≥94.8%）、int8 43 KB 零掉点、同种子可复现</td></tr>
+          <tr><td>6 端侧集成</td><td>已完成：TFLM 双层决策（阈值 0.70）上线；现编 20 句 18/20 = 90%；降级路径与栈水位已验证</td></tr>
+          <tr><td>关键文件</td><td>语料 <code>tools/intents.json</code>；训练 <code>train_textcnn.py</code>；量化与固件导出 <code>quantize_tflite.py</code>；阈值 <code>tune_threshold.py</code>；板端 <code>components/nlu_model.cc</code> + <code>nlu.c</code></td></tr>
         </table>
       </div>
 
-      <h3>阶段 5 开工前的准备</h3>
+      <h3>下一步：迭代闭环（阶段 7~8）</h3>
       <ul>
-        <li><strong>数据前提</strong>：<code>vocab.txt</code> 与三集 TSV 已生成并通过验收——训练脚本以它们为唯一输入。</li>
-        <li><strong>环境</strong>：TensorFlow / Keras（CPU 足够）。WSL2 或 Windows 直装皆可；具体版本与安装方式在开工时查证官方最新指引再定，不在本页锁死。</li>
-        <li><strong>三条纪律</strong>：种子固定；调参只动 val；test 只考一次。</li>
-        <li><strong>交付物</strong>：int8 模型 + 评估报告（测试集准确率、逐类指标、混淆矩阵、量化前后对比）。</li>
+        <li><strong>阶段 7</strong>：WiFi 通道（HTTP Server + 网页输入，与串口共用命令队列）。</li>
+        <li><strong>阶段 8</strong>：收集真实输入 → 补语料 → 重训循环。阶段 6 验收残留的边界句（「吵死了快停」这类双信号句）就是第一批种子。</li>
+        <li><strong>重训只要一分钟</strong>：语料生成、训练、量化、烧录全链路均已脚本化，一次迭代的实际成本是分钟级。</li>
       </ul>
 
       <h3>最容易踩的三个坑（本页重点回顾）</h3>
