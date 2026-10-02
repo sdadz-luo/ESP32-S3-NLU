@@ -250,24 +250,32 @@ static void redraw_talk(void)
     draw_scrollbar(first);
 }
 
-/* 屏幕命令：改视口/历史后重绘对话区 */
+/* 屏幕命令：状态有变化才重绘（边界处按键不动作，避免画面闪烁） */
 static void on_cmd(ui_cmd_t cmd)
 {
     switch (cmd) {
     case UI_CMD_SCROLL_UP:
-        if (s_scroll < max_scroll()) {
-            s_scroll++;
+        if (s_scroll >= max_scroll()) {
+            return;                     /* 已在顶部 */
         }
+        s_scroll++;
         break;
     case UI_CMD_SCROLL_DOWN:
-        if (s_scroll > 0) {
-            s_scroll--;
+        if (s_scroll == 0) {
+            return;                     /* 已在底部 */
         }
+        s_scroll--;
         break;
     case UI_CMD_SCROLL_BOTTOM:
+        if (s_scroll == 0) {
+            return;                     /* 已在最新 */
+        }
         s_scroll = 0;
         break;
     case UI_CMD_CLEAR:
+        if (s_cnt == 0) {
+            return;                     /* 已是空屏 */
+        }
         s_head = 0;
         s_cnt = 0;
         s_scroll = 0;
