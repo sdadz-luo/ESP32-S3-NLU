@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **技术路线已定**：文本 NLU。理解层先关键词规则占位，阶段 4~6 用自训
   小模型（字符级 TextCNN → int8 量化 → TFLite Micro）替换，规则降级兜底
-- **进度**：阶段 1（四层骨架与执行层）已完成并验收通过
+- **进度**：阶段 1（骨架与执行层）、阶段 2（响应层 2.0）已完成并验收通过
 - 分阶段计划见 `docs/ROADMAP.md`；阶段 1 实施依据见 `docs/STAGE1_DESIGN.md`
 
 ## 架构与硬件约定
