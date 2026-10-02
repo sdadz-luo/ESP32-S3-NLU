@@ -4,9 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目目标
 
-在正点原子 DNESP32S3 开发板上学习与测试 NLU（自然语言理解）模型。
-**技术路线未定**（候选：乐鑫 ESP-SR 离线语音方案、自训小模型部署），
-当前为空模板工程，`main/main.c` 的 `app_main()` 待实现。
+在正点原子 DNESP32S3 开发板上学习与测试 NLU（自然语言理解）模型：
+串口 / WiFi 输入自然语言 → 板载意图识别 → 调用片上工具（LED / 蜂鸣器，
+后续加 LCD）。
+
+- **技术路线已定**：文本 NLU。理解层先关键词规则占位，阶段 4~6 用自训
+  小模型（字符级 TextCNN → int8 量化 → TFLite Micro）替换，规则降级兜底
+- **进度**：阶段 1（四层骨架与执行层）已完成并验收通过
+- 分阶段计划见 `docs/ROADMAP.md`；阶段 1 实施依据见 `docs/STAGE1_DESIGN.md`
+
+## 架构与硬件约定
+
+- 四层解耦：输入层 → 理解层（nlu，出意图）→ 响应层（resp，出文本）→
+  执行层（tools → rhythm 节奏任务）；工具层只向 `rhythm_q` 投命令、不碰硬件
+- **节奏任务（`components/rhythm.c`）是全工程唯一写 XL9555 输出的地方**
+  （蜂鸣器）；按键任务只读输入寄存器
+- 板载极性：LED（GPIO1）低电平点亮；蜂鸣器经 XL9555（BEEP_IO）写 0 为响
+- `components/` 为「目录即组件」：源文件平铺、不再分二级目录；改行为前先读
+  `docs/` 对应阶段的细化设计
 
 ## 硬件平台
 
