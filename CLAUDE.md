@@ -41,7 +41,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 常用命令
 
-需先有 ESP-IDF v6.1 环境（EIM 安装）。命令在工程根目录执行：
+需先有 ESP-IDF v6.1 环境（EIM 安装）。每个新终端先激活环境：
+
+```powershell
+. "C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1"   # EIM 激活脚本；IDF 的 export.ps1 不适用本机布局
+```
+
+命令在工程根目录执行（脚本化时建议加 `-C D:/project/ESP32/DNESP32S3-NLU` 显式指定工程，避免工作目录漂移）：
 
 ```bash
 idf.py build                 # 构建
