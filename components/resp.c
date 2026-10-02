@@ -5,7 +5,7 @@
  *
  * 结构与决策见 docs/STAGE2_DESIGN.md：状态取自执行层快照
  * （rhythm_led_mode / rhythm_beep_mode），模板池全静态、无动态分配，
- * 随机源为硬件 RNG esp_random()。词池措辞为首版，阶段 3 做屏幕时再精化。
+ * 随机源为硬件 RNG esp_random()。拒识与失败路径直出整句，不套前后缀。
  */
 
 #include "resp.h"
@@ -159,6 +159,13 @@ void resp_compose(intent_t intent, bool executed, const char *input)
 
     if (!executed) {
         compose_failed(intent, buf, sizeof(buf));
+        out_line(input, buf);
+        return;
+    }
+
+    /* 拒识不套前后缀：整句应像一句直接回应，而非执行确认 */
+    if (intent == I_UNKNOWN) {
+        snprintf(buf, sizeof(buf), "%s", pool_pick(BODY_UNKNOWN));
         out_line(input, buf);
         return;
     }

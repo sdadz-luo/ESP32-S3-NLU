@@ -170,7 +170,7 @@ textarea.export { min-height: 150px; font-family: var(--font-mono); font-size: 1
           </div>
 
           <div class="part-row" id="parts"></div>
-          <p class="note">预览按固件相同规则组合：LED 类命令在蜂鸣器非停止时追加补语，蜂鸣器类命令在灯非熄灭时追加补语。回复超过 192 字节会被 C 侧缓冲截断（固件上限）。</p>
+          <p class="note">预览按固件相同规则组合：LED 类命令在蜂鸣器非停止时追加补语，蜂鸣器类命令在灯非熄灭时追加补语；拒识（unknown）不套前缀与后缀。回复超过 192 字节会被 C 侧缓冲截断（固件上限）。</p>
         </div>
       </div>
     </div>
@@ -304,11 +304,12 @@ function save() {
 
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-/* 与 resp.c 的 cross_clause 同规则 */
+/* 与 resp.c 同规则：拒识不套前后缀；跨通道补语按当前预览状态追加 */
 function compose(intent) {
-  const pre = pick(pools.prefixes) || "";
+  const bare = intent === "unknown";
+  const pre = bare ? "" : (pick(pools.prefixes) || "");
   const body = pick(pools.bodies[intent]) || "";
-  const suf = pick(pools.suffixes) || "";
+  const suf = bare ? "" : (pick(pools.suffixes) || "");
   let clause = "";
   if (intent.indexOf("led") === 0) {
     clause = ui.beep === "alarm" ? (pools.cross.beep_alarm || "")
