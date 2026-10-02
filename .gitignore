@@ -89,3 +89,6 @@ data/*.otf
 
 # 语料生成产物（由 tools/gen_corpus.py 从语料源确定性复现；见 data/README.md）
 data/corpus/
+
+# 模型产物（由 tools/train_textcnn.py / tools/quantize_tflite.py 生成；见 data/README.md）
+data/model/
