@@ -28,3 +28,15 @@ python tools/gen_corpus.py          # 重新生成全部产物
 ```
 
 语料源入库、产物不入库：阶段 5 训练前重跑一次即可保证与源同步。
+
+## 模型产物（阶段 5）
+
+- `model/`：由 `tools/train_textcnn.py`（float 模型 + 训练评估）与
+  `tools/quantize_tflite.py`（int8 量化 + C 数组导出）生成，不入库
+- 内容：`model_float.keras`、`model_int8.tflite`、`model_int8.cc/h`
+  （C 数组，阶段 6 编译进固件）、`eval_report.md`、`quant_report.md`
+
+```bash
+.venv/Scripts/python.exe tools/train_textcnn.py       # 训练（工程 .venv，TF 环境）
+.venv/Scripts/python.exe tools/quantize_tflite.py     # 量化与导出
+```

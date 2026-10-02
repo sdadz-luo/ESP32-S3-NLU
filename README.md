@@ -2,7 +2,7 @@
 
 基于正点原子 DNESP32S3 开发板的学习型工程：在 ESP32-S3 上跑 NLU（自然语言理解）模型——串口 / WiFi 输入自然语言，板载意图识别后调用片上工具（LED / 蜂鸣器，后续加 LCD）。技术路线：理解层先关键词规则占位，阶段 4~6 用自训 int8 小模型（TFLite Micro）替换。
 
-当前进度：阶段 1~4（骨架与执行层、响应层 2.0、屏幕接入、数据工程）已完成并验收通过；下一步阶段 5（模型训练与量化）。
+当前进度：阶段 1~5（骨架与执行层、响应层 2.0、屏幕接入、数据工程、模型训练与量化）已完成并验收通过；下一步阶段 6（端侧集成：模型上线 + 规则兜底）。
 
 ## 硬件平台
 
@@ -62,14 +62,18 @@ python -m esptool --chip esp32s3 -p COM5 write_flash 0xC00000 data/font16.bin
 
 训练语料由 `tools/gen_corpus.py` 从语料源 `tools/intents.json`（8 类意图，模板 × 槽位）确定性生成到 `data/corpus/`（不入库）；规则兜底基线与逐类误判明细由 `tools/rule_baseline.py` 输出。讲解材料见 `docs/stage4-nlu-guide.html`，设计与验收记录见 `docs/STAGE4_DESIGN.md`。
 
+## 模型训练与量化（阶段 5）
+
+字符级 TextCNN（TensorFlow / Keras）由 `tools/train_textcnn.py` 训练、`tools/quantize_tflite.py` 做 int8 全整型量化并导出 C 数组，产物在 `data/model/`（不入库）。当前成绩：test 准确率 98.9%（规则基线 82.8%）；int8 模型 43.8 KB、零掉点。设计与验收记录见 `docs/STAGE5_DESIGN.md`。
+
 ## 目录结构
 
 ```text
 .
 ├── main/                  # 应用入口（app_main）
 ├── components/            # 四层应用代码（目录即组件，源文件平铺）
-├── tools/                 # 工具：字库生成 / 回复词池编辑 / 语料生成 / 规则基线
-├── data/                  # 字库与语料产物（不入库，见 data/README.md）
+├── tools/                 # 工具：字库 / 词池编辑 / 语料 / 规则基线 / 训练与量化
+├── data/                  # 字库 / 语料 / 模型产物（不入库，见 data/README.md）
 ├── docs/                  # 路线图与各阶段细化设计
 ├── partitions-16MiB.csv   # 自定义分区表
 ├── sdkconfig.defaults     # 固化的关键配置（Flash / PSRAM / 分区表）
