@@ -530,8 +530,18 @@ details .db{padding:2px 16px 16px;border-top:1px solid var(--line)}
   background:var(--cyan-soft);border:1px solid var(--cyan-mark);color:var(--cyan);
 }
 .probe-run button:hover{border-color:var(--cyan)}
-.vec-bars{display:flex;align-items:flex-end;gap:1px;height:74px}
-.vec-bars i{flex:1;background:var(--amber-mark);min-height:1px;border-radius:1px 1px 0 0;display:block}
+.legend-mark{
+  display:inline-block;width:13px;height:10px;border:1.5px solid var(--err);
+  border-radius:1px;vertical-align:-1px;margin-right:6px;
+}
+.flowsum{
+  margin-top:14px;border:1px solid var(--line);border-left:3px solid var(--amber-mark);
+  border-radius:0 3px 3px 0;background:var(--surface);
+  padding:11px 15px;font-size:.86rem;color:var(--muted);line-height:1.75;
+}
+.flowsum .fs-k{font-family:var(--f-mono);font-size:.8rem;color:var(--amber);margin-right:9px}
+.flowsum .fs-a{color:var(--faint);margin:0 3px}
+.flowsum b{color:var(--ink);font-weight:650}
 .conv-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 @media (max-width:760px){.conv-grid{grid-template-columns:1fr}}
 .cv-lab{font-family:var(--f-mono);font-size:.78rem;color:var(--muted);margin-bottom:5px;display:flex;justify-content:space-between;gap:8px}
@@ -1833,54 +1843,62 @@ void task_display(void *arg);</pre>
       </div>
 
       <div class="probe-item">
-        <div class="pi-head"><span class="ttl">② 字符嵌入</span><span class="mono">Embedding 表 373×32 中的 22 行</span></div>
+        <div class="pi-head"><span class="ttl">② 字符嵌入</span><span>Embedding 表 373×32 中的若干行——每个有效字符查表得到一个 32 维向量，PAD 位置取第 0 行</span></div>
         <div class="pi-body">
-          <canvas id="cvEmb" width="660" height="384" role="img" aria-label="字符嵌入热力图：22 个序列位置 × 32 维"></canvas>
+          <canvas id="cvEmb" width="660" height="384" role="img" aria-label="字符嵌入热力图：22 个序列位置 × 32 维，顶部标注对应字符"></canvas>
           <div class="heat-note">
-            <span>横轴 = 序列位置（0–21）</span><span>纵轴 = 32 维</span><span>颜色 = 权重值（深 = 绝对值大）</span>
-            <span class="ramp"><span>−</span><span class="bar" id="rampEmb"></span><span>+</span></span>
+            <span>颜色 = 权重值（亮 = 数值大）</span>
+            <span class="ramp"><span>低</span><span class="bar" id="rampEmb"></span><span>高</span></span>
+            <span>灰色 PAD = 补齐位（无字符）</span>
           </div>
         </div>
       </div>
 
       <div class="probe-item">
-        <div class="pi-head"><span class="ttl">③ 三路卷积（ReLU 后激活）</span><span>横向 64 个通道，纵向沿序列滑动的位置；三路并联、各自做全局最大池化</span></div>
+        <div class="pi-head"><span class="ttl">③ 三路卷积（ReLU 后激活）</span><span>三个并联卷积，窗口 k=2 / 3 / 4，各 64 个通道；纵向 = 卷积核沿句子滑动的位置</span></div>
         <div class="pi-body">
           <div class="conv-grid">
             <div>
-              <div class="cv-lab"><span>k=2 · 21×64</span><span class="mx" id="mx2"></span></div>
-              <canvas id="cvC2" width="640" height="210" role="img" aria-label="k=2 卷积激活热力图"></canvas>
+              <div class="cv-lab"><span>k=2 · 输出 21×64</span><span class="mx" id="mx2"></span></div>
+              <canvas id="cvC2" width="640" height="210" role="img" aria-label="k=2 卷积激活热力图，每通道峰值位置以红框标出"></canvas>
             </div>
             <div>
-              <div class="cv-lab"><span>k=3 · 20×64</span><span class="mx" id="mx3"></span></div>
-              <canvas id="cvC3" width="640" height="200" role="img" aria-label="k=3 卷积激活热力图"></canvas>
+              <div class="cv-lab"><span>k=3 · 输出 20×64</span><span class="mx" id="mx3"></span></div>
+              <canvas id="cvC3" width="640" height="200" role="img" aria-label="k=3 卷积激活热力图，每通道峰值位置以红框标出"></canvas>
             </div>
             <div>
-              <div class="cv-lab"><span>k=4 · 19×64</span><span class="mx" id="mx4"></span></div>
-              <canvas id="cvC4" width="640" height="190" role="img" aria-label="k=4 卷积激活热力图"></canvas>
+              <div class="cv-lab"><span>k=4 · 输出 19×64</span><span class="mx" id="mx4"></span></div>
+              <canvas id="cvC4" width="640" height="190" role="img" aria-label="k=4 卷积激活热力图，每通道峰值位置以红框标出"></canvas>
             </div>
           </div>
           <div class="heat-note">
-            <span>每个卷积核扫过整句，只保留峰值（全局最大池化）——所以「模式在哪出现」不作要求</span>
+            <span><span class="legend-mark"></span>红框 = 该通道在整句中的最大激活——全局最大池化只保留这个值，位置被丢弃</span>
           </div>
         </div>
       </div>
 
       <div class="probe-item">
-        <div class="pi-head"><span class="ttl">④ 池化拼接 → 192 维</span><span>64×3 个峰值直接拼接，构成分类头的输入</span></div>
+        <div class="pi-head"><span class="ttl">④ 池化拼接 → 192 维 → 分类头</span><span>三路各取 64 个峰值、按 k=2 / k=3 / k=4 顺序拼接；右侧送入 Dense + softmax</span></div>
         <div class="pi-body">
-          <div class="vec-bars" id="poolBars"><i style="height:2%"></i></div>
-          <div class="heat-note"><span>左 64 = k=2 路 · 中 64 = k=3 路 · 右 64 = k=4 路</span></div>
+          <canvas id="cvPool" width="980" height="150" role="img" aria-label="192 维池化向量面积图，按三路分段标注"></canvas>
         </div>
       </div>
 
       <div class="probe-item">
-        <div class="pi-head"><span class="ttl">⑤ 分类头与决策</span><span class="mono">Dense(8) → softmax → 阈值 → 规则兜底</span></div>
+        <div class="pi-head"><span class="ttl">⑤ 分类头与决策</span><span class="mono">Dense(8) → softmax → 阈值判定 → 规则兜底</span></div>
         <div class="pi-body">
           <div class="bars" id="probeBars"></div>
           <div class="verdict" id="probeVerdict" style="margin-top:12px">等待运行</div>
         </div>
       </div>
+    </div>
+
+    <div class="flowsum">
+      <span class="fs-k">数据流</span>
+      22 字符 <span class="fs-a">→</span> 查表得 22×32 嵌入 <span class="fs-a">→</span>
+      k=2 / 3 / 4 三种窗口各扫一遍、各留 64 个峰值 <span class="fs-a">→</span>
+      拼成 192 维 <span class="fs-a">→</span> Dense(8) + softmax <span class="fs-a">→</span>
+      <b>8 类概率</b> <span class="fs-a">→</span> 置信度 ≥ 0.70 采用模型，否则规则兜底
     </div>
 
     <div class="callout">
@@ -3159,7 +3177,7 @@ python -m esptool --chip esp32s3 -p COM32 write_flash 0xC00000 data/font16.bin</
     btn: document.getElementById('probeBtn'),
     toks: document.getElementById('probeToks'),
     bars: document.getElementById('probeBars'),
-    pool: document.getElementById('poolBars'),
+    cvPool: document.getElementById('cvPool'),
     verdict: document.getElementById('probeVerdict'),
     cvEmb: document.getElementById('cvEmb'),
     cvs: [document.getElementById('cvC2'), document.getElementById('cvC3'), document.getElementById('cvC4')],
@@ -3186,32 +3204,135 @@ python -m esptool --chip esp32s3 -p COM32 write_flash 0xC00000 data/font16.bin</
                     Math.round(bg[2] + (fg[2] - bg[2]) * t) + ')';
   }
 
-  /* ---------- 画布适配：显示高度由逻辑值决定，分辨率随容器宽度 ---------- */
-  function fitAndGet(cv, hCss) {
+  /* ---------- 画布准备：分辨率随容器宽度与设备像素比 ---------- */
+  function prep(cv, h) {
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
     var w = cv.clientWidth || 600;
-    cv.style.height = hCss + 'px';
+    cv.style.height = h + 'px';
     cv.width = Math.round(w * dpr);
-    cv.height = Math.round(hCss * dpr);
-    return cv;
+    cv.height = Math.round(h * dpr);
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx: ctx, w: w };
   }
 
-  /* ---------- 热力图绘制：get(r,c) 取值，rows×cols 网格 ---------- */
-  function drawHeat(cv, rows, cols, get) {
-    var ctx = cv.getContext('2d');
-    var W = cv.width, H = cv.height;
-    var cw = W / cols, ch = H / rows;
-    var mn = Infinity, mx = -Infinity, r, c, v;
-    for (r = 0; r < rows; r++) for (c = 0; c < cols; c++) { v = get(r, c); if (v < mn) mn = v; if (v > mx) mx = v; }
+  /* ---------- 带坐标轴的热力图 ----------
+     opt: rows / cols / get / height
+          chars    顶部字符行（长度 cols，null 表示 PAD）
+          rowAxis / rowTicks / colAxis / colTicks
+          markMax  每行最大值描红框（解释全局最大池化在选什么）
+          padL     左边距（卷积图刻度窄，可调小） */
+  function drawMatrix(cv, opt) {
+    var P = prep(cv, opt.height), ctx = P.ctx, w = P.w, h = opt.height;
+    var PL = opt.padL || 46, PR = 8;
+    var PT = opt.chars ? 22 : 6, PB = 30;
+    var pw = w - PL - PR, ph = h - PT - PB;
+    var cw = pw / opt.cols, chh = ph / opt.rows;
+    var ink = cssVar('--ink').trim(), muted = cssVar('--muted').trim(), faint = cssVar('--faint').trim();
+    var r, c, v;
+
+    var mn = Infinity, mx = -Infinity;
+    for (r = 0; r < opt.rows; r++) for (c = 0; c < opt.cols; c++) {
+      v = opt.get(r, c); if (v < mn) mn = v; if (v > mx) mx = v;
+    }
     var span = (mx - mn) || 1;
-    ctx.clearRect(0, 0, W, H);
-    for (r = 0; r < rows; r++) {
-      for (c = 0; c < cols; c++) {
-        ctx.fillStyle = ramp((get(r, c) - mn) / span);
-        ctx.fillRect(Math.floor(c * cw), Math.floor(r * ch), Math.ceil(cw), Math.ceil(ch));
+
+    ctx.clearRect(0, 0, w, h);
+    for (r = 0; r < opt.rows; r++) {
+      for (c = 0; c < opt.cols; c++) {
+        ctx.fillStyle = ramp((opt.get(r, c) - mn) / span);
+        ctx.fillRect(PL + c * cw, PT + r * chh, Math.ceil(cw), Math.ceil(chh));
       }
     }
+
+    /* 每行最大激活描框：这些框就是全局最大池化真正留下的值 */
+    if (opt.markMax) {
+      ctx.strokeStyle = cssVar('--err').trim();
+      ctx.lineWidth = 1.2;
+      for (r = 0; r < opt.rows; r++) {
+        var bc = 0, bv = -Infinity;
+        for (c = 0; c < opt.cols; c++) { v = opt.get(r, c); if (v > bv) { bv = v; bc = c; } }
+        ctx.strokeRect(PL + bc * cw + 0.5, PT + r * chh + 0.5,
+                       Math.max(2, cw - 1), Math.max(2, chh - 1));
+      }
+    }
+
+    /* 左轴：行刻度 + 竖排轴名 */
+    ctx.font = '11px "Cascadia Mono",Consolas,monospace';
+    ctx.fillStyle = muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    opt.rowTicks.forEach(function (t) { ctx.fillText(String(t), PL - 6, PT + (t + 0.5) * chh); });
+    ctx.save();
+    ctx.translate(11, PT + ph / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center'; ctx.fillStyle = faint;
+    ctx.fillText(opt.rowAxis, 0, 0);
+    ctx.restore();
+
+    /* 下轴：列刻度 + 轴名 */
+    ctx.fillStyle = muted; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    opt.colTicks.forEach(function (t) { ctx.fillText(String(t), PL + (t + 0.5) * cw, PT + ph + 5); });
+    ctx.fillStyle = faint;
+    ctx.fillText(opt.colAxis, PL + pw / 2, PT + ph + 16);
+
+    /* 顶行：每个位置对应的字符（PAD 置灰；列太窄时缩为单点，避免相邻标签相撞） */
+    if (opt.chars) {
+      ctx.font = '12px "Microsoft YaHei UI","Segoe UI",sans-serif';
+      ctx.textBaseline = 'alphabetic';
+      var padTxt = cw >= 20 ? 'PAD' : '·';
+      for (c = 0; c < opt.cols; c++) {
+        var s = opt.chars[c];
+        ctx.fillStyle = s === null ? faint : ink;
+        ctx.fillText(s === null ? padTxt : (s === ' ' ? '␠' : s), PL + (c + 0.5) * cw, PT - 6);
+      }
+    }
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     return [mn, mx];
+  }
+
+  /* ---------- 192 维池化向量：面积图 + 三路分段标注 ---------- */
+  function drawPool(cv, vec) {
+    var P = prep(cv, 152), ctx = P.ctx, w = P.w, h = 152;
+    var PL = 46, PR = 10, PT = 10, PB = 36;
+    var pw = w - PL - PR, ph = h - PT - PB;
+    var muted = cssVar('--muted').trim(), faint = cssVar('--faint').trim();
+    var amber = parseColor(cssVar('--amber-mark'));
+    var grid = cssVar('--line').trim();
+
+    var mx = 0, i;
+    for (i = 0; i < 192; i++) if (vec[i] > mx) mx = vec[i];
+    mx = mx || 1;
+
+    ctx.clearRect(0, 0, w, h);
+    /* 值轴：0 / 半 / 最大 */
+    ctx.font = '11px "Cascadia Mono",Consolas,monospace';
+    ctx.fillStyle = muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    [0, mx / 2, mx].forEach(function (v) {
+      var y = PT + ph * (1 - v / mx);
+      ctx.strokeStyle = grid; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(PL, y + 0.5); ctx.lineTo(PL + pw, y + 0.5); ctx.stroke();
+      ctx.fillText(v.toFixed(1), PL - 6, y);
+    });
+    /* 面积 */
+    var bw = pw / 192;
+    ctx.fillStyle = 'rgb(' + amber.map(Math.round).join(',') + ')';
+    for (i = 0; i < 192; i++) {
+      var bh = ph * vec[i] / mx;
+      ctx.fillRect(PL + i * bw, PT + ph - bh, Math.max(1, bw - 0.4), bh);
+    }
+    /* 两处拼接分界（64 / 128） */
+    ctx.strokeStyle = cssVar('--err').trim();
+    ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+    [64, 128].forEach(function (p) {
+      var x = PL + p * bw;
+      ctx.beginPath(); ctx.moveTo(x, PT); ctx.lineTo(x, PT + ph + 4); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    /* 底部段名 */
+    ctx.fillStyle = faint; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ['左 64 · k=2 路', '中 64 · k=3 路', '右 64 · k=4 路'].forEach(function (s, k) {
+      ctx.fillText(s, PL + pw * (k + 0.5) / 3, PT + ph + 8);
+    });
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   }
 
   /* ---------- 概率条（8 行） ---------- */
@@ -3223,11 +3344,6 @@ python -m esptool --chip esp32s3 -p COM32 write_flash 0xC00000 data/font16.bin</
     el.bars.appendChild(row);
     barEls.push({ row: row, fill: row.querySelector('.fill'), pc: row.querySelector('.pc') });
   });
-  /* 池化向量条（192 根，三路拼接） */
-  el.pool.innerHTML = '';
-  var poolEls = [];
-  for (var i = 0; i < 192; i++) { var b = document.createElement('i'); el.pool.appendChild(b); poolEls.push(b); }
-
   function renderToks(tk) {
     el.toks.innerHTML = '';
     tk.tokens.forEach(function (t) {
@@ -3257,27 +3373,35 @@ python -m esptool --chip esp32s3 -p COM32 write_flash 0xC00000 data/font16.bin</
     var res = NLU.forward(tk.ids, true);
     var E = NLU.emb();
 
-    /* ② 嵌入：行 = 32 维，列 = 22 位置 */
-    fitAndGet(el.cvEmb, 216);
-    drawHeat(el.cvEmb, 32, 22, function (r, c) { return E[tk.ids[c] * 32 + r]; });
+    /* ② 嵌入：行 = 32 维，列 = 22 位置，顶部标出每个位置对应的字符 */
+    var chars = [];
+    tk.tokens.forEach(function (t) { if (!t.oov) chars.push(t.ch); });
+    while (chars.length < NLU.MAXLEN) chars.push(null);
+    drawMatrix(el.cvEmb, {
+      rows: 32, cols: 22, height: 300, chars: chars,
+      get: function (r, c) { return E[tk.ids[c] * 32 + r]; },
+      rowAxis: '嵌入维度 (32)', rowTicks: [0, 16, 31],
+      colAxis: '序列位置（上方是对应字符）', colTicks: [0, 5, 10, 15, 21]
+    });
 
-    /* ③ 三路卷积激活：行 = 位置，列 = 64 通道 */
+    /* ③ 三路卷积激活：行 = 滑动位置，列 = 64 通道；每行峰值描框 */
     for (var k = 0; k < 3; k++) {
       (function (k) {
         var map = res.maps[k], L = 22 - (k + 2) + 1;
-        fitAndGet(el.cvs[k], 132);
-        var rng = drawHeat(el.cvs[k], L, 64, function (r, c) { return map[r * 64 + c]; });
+        var rng = drawMatrix(el.cvs[k], {
+          rows: L, cols: 64, height: 172, markMax: true, padL: 34,
+          get: function (r, c) { return map[r * 64 + c]; },
+          rowAxis: '卷积核 (64)', rowTicks: [0, 32, 63],
+          colAxis: '卷积滑动位置', colTicks: [0, L - 1]
+        });
         el.mxs[k].textContent = '峰值 ' + rng[1].toFixed(2);
       })(k);
     }
 
-    /* ④ 池化向量 */
+    /* ④ 池化向量：192 维面积图（三分段标注） */
     var pool = new Float32Array(192);
     for (var p = 0; p < 3; p++) pool.set(res.pooled[p], p * 64);
-    var pmax = 0;
-    for (var q = 0; q < 192; q++) if (pool[q] > pmax) pmax = pool[q];
-    pmax = pmax || 1;
-    for (var v = 0; v < 192; v++) poolEls[v].style.height = Math.max(1, (pool[v] / pmax) * 100) + '%';
+    drawPool(el.cvPool, pool);
 
     /* ⑤ 概率与决策 */
     var topI = 0;
