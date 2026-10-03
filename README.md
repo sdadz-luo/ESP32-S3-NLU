@@ -60,6 +60,12 @@ python -m esptool --chip esp32s3 -p COM5 write_flash 0xC00000 data/font16.bin
 
 回复词池（前缀 / 主体 / 跨通道补语 / 后缀 / 状态描述）可用 `tools/reply_pools.html` 在浏览器里编辑：右侧按固件同款组合逻辑在模拟设备屏上实时预览，改完导出 JSON 即可更新固件文案。
 
+工程全貌的图解导览见 `docs/项目介绍.html`（双击打开，断网可用）：四层架构、逐模块接口、
+模型结构与评估图表，并内置一台可交互的模拟设备——屏幕滚动、按键、LED / 蜂鸣器波形与
+双层决策都复刻固件行为，模型前向可逐层展开、单条命令从输入到工具输出的链路逐节点点亮。
+页面里的模型直接运行训练产物的真实权重（float32 前向），更新模型后重跑
+`tools/build_overview.py` 即可刷新页面内的数据。
+
 ## 语料与规则基线（阶段 4）
 
 训练语料由 `tools/gen_corpus.py` 从语料源 `tools/intents.json`（8 类意图，模板 × 槽位）确定性生成到 `data/corpus/`（不入库）；规则兜底基线与逐类误判明细由 `tools/rule_baseline.py` 输出。讲解材料见 `docs/stage4-nlu-guide.html`，设计与验收记录见 `docs/STAGE4_DESIGN.md`。
